@@ -1,0 +1,38 @@
+{
+  "name": "ewallet-backend",
+  "version": "1.0.0",
+  "description": "Production-ready Semi-Closed E-Wallet Digital Payment Platform API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/seeders/adminSeed.js",
+    "lint": "eslint src/"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.2.0",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5",
+    "pg-hstore": "^2.3.4",
+    "rate-limit-redis": "^4.2.0",
+    "sequelize": "^6.37.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "nodemon": "^3.1.0"
+  },
+  "keywords": ["ewallet", "payment", "nodejs", "express", "postgresql"],
+  "author": "E-Wallet Team",
+  "license": "MIT"
+}
