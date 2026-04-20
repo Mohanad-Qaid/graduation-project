@@ -18,7 +18,7 @@ async function runSeeder() {
 
         // 1. Create Users
         console.log('🔄 Seeding Users...');
-        const passwordHash = await bcrypt.hash('Password123!', 10);
+        const passwordHash = await bcrypt.hash('123456', 10);
 
         const usersToCreate = Array.from({ length: 50 }).map(() => {
             // ~70% CUSTOMER, ~30% MERCHANT
@@ -156,7 +156,7 @@ async function runSeeder() {
 
         await dbTxn.commit();
         console.log('🎉 Demo data seeded successfully!');
-        console.log('You can login with any generated email and the password "Password123!"');
+        console.log('You can login with any generated email and the password "123456"');
 
     } catch (error) {
         if (dbTxn) await dbTxn.rollback();

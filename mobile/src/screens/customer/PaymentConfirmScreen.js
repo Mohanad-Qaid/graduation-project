@@ -66,7 +66,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
           </View>
           <Text variant="headlineSmall" style={styles.successTitle}>Payment Successful!</Text>
           <Text variant="displaySmall" style={styles.successAmount}>
-            {currency} {Number(paymentResult.amount || 0).toFixed(2)}
+            {Number(paymentResult.amount || 0).toFixed(2)} {currency}
           </Text>
           <Text variant="bodyMedium" style={styles.successMerchant}>
             Paid to {businessName}
@@ -74,15 +74,6 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
           <Text variant="bodySmall" style={styles.reference}>
             Ref: {paymentResult.reference_code}
           </Text>
-
-          <Card style={styles.balanceCard}>
-            <Card.Content>
-              <Text variant="labelMedium">New Balance</Text>
-              <Text variant="titleLarge" style={styles.newBalance}>
-                {currency} {Number(balance || 0).toFixed(2)}
-              </Text>
-            </Card.Content>
-          </Card>
 
           <Button mode="contained" onPress={handleDone} style={styles.doneButton}>Done</Button>
         </View>
@@ -123,7 +114,6 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
               <Icon name="store" size={40} color="#6200EE" />
             </View>
             <Text variant="titleMedium">{businessName}</Text>
-            <Text variant="bodySmall" style={styles.merchantIdText}>ID: {merchantId}</Text>
           </Card.Content>
         </Card>
 
@@ -138,7 +128,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
               mode="outlined"
               keyboardType="decimal-pad"
               style={styles.amountInput}
-              left={<TextInput.Affix text={currency} />}
+              right={<TextInput.Affix text={currency} />}
             />
 
             <Divider style={styles.divider} />
@@ -149,7 +139,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
                 variant="bodyLarge"
                 style={parsedAmount > 0 && !sufficientBalance ? styles.balanceLow : styles.balanceOk}
               >
-                {currency} {Number(balance || 0).toFixed(2)}
+                {Number(balance || 0).toFixed(2)} {currency}
               </Text>
             </View>
 
@@ -169,7 +159,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
           style={styles.payButton}
         >
           {parsedAmount > 0
-            ? `Pay ${currency} ${Number(parsedAmount || 0).toFixed(2)}`
+            ? `Pay ${Number(parsedAmount || 0).toFixed(2)} ${currency}`
             : 'Enter an Amount'}
         </Button>
 
@@ -203,7 +193,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3E5F5',
     justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
-  merchantIdText: { color: '#999', marginTop: 4 },
   detailsCard: { marginHorizontal: 20, backgroundColor: '#FFFFFF', marginBottom: 20 },
   amountLabel: { marginBottom: 8 },
   amountInput: { marginBottom: 8, backgroundColor: '#FFFFFF' },
@@ -221,8 +210,6 @@ const styles = StyleSheet.create({
   successAmount: { fontWeight: 'bold', marginBottom: 8 },
   successMerchant: { color: '#666', marginBottom: 4 },
   reference: { color: '#999', marginBottom: 30 },
-  balanceCard: { width: '100%', backgroundColor: '#E8F5E9', marginBottom: 30 },
-  newBalance: { color: '#4CAF50', fontWeight: 'bold' },
   doneButton: { width: '100%', paddingVertical: 6 },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   errorText: { marginVertical: 20, color: '#666' },

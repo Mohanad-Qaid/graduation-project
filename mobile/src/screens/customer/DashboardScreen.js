@@ -38,10 +38,10 @@ const DashboardScreen = ({ navigation }) => {
     dispatch(clearTxError());
   };
 
-  const formatCurrency = (amount) => `${currency} ${Number(amount || 0).toFixed(2)}`;
+  const formatCurrency = (amount) => `${Number(amount || 0).toFixed(2)}  ${currency}`;
 
   const firstName = user?.first_name || 'there';
-  const recentTransactions = transactions.slice(0, 3);
+  const recentTransactions = transactions.slice(0, 6);
   const isRefreshing = walletLoading || txLoading;
 
   return (
@@ -124,8 +124,8 @@ const DashboardScreen = ({ navigation }) => {
                         color={tx.isOutgoing ? '#F44336' : '#4CAF50'}
                       />
                     </View>
-                    <View>
-                      <Text variant="bodyMedium" style={styles.transactionTitle}>
+                    <View style={styles.transactionDetails}>
+                      <Text variant="bodyMedium" style={styles.transactionTitle} numberOfLines={1} ellipsizeMode="tail">
                         {tx.counterparty}
                       </Text>
                       <Text variant="bodySmall" style={styles.transactionDate}>
@@ -179,7 +179,8 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', color: '#999' },
   transactionCard: { marginBottom: 10, backgroundColor: '#FFFFFF' },
   transactionContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  transactionLeft: { flexDirection: 'row', alignItems: 'center' },
+  transactionLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
+  transactionDetails: { flex: 1 },
   iconContainer: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   outgoingIcon: { backgroundColor: '#FFEBEE' },
   incomingIcon: { backgroundColor: '#E8F5E9' },

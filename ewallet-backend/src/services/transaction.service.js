@@ -33,6 +33,49 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
             'amount', 'transaction_type', 'status',
             'reference_code', 'description', 'category', 'createdAt',
         ],
+        include: [
+            {
+                model: Wallet,
+                as: 'senderWallet',
+                attributes: ['id'],
+                required: false,
+                include: [{ model: User, as: 'owner', attributes: ['first_name', 'last_name', 'business_name'] }]
+            },
+            {
+                model: Wallet,
+                as: 'receiverWallet',
+                attributes: ['id'],
+                required: false,
+                include: [{ model: User, as: 'owner', attributes: ['first_name', 'last_name', 'business_name'] }]
+            }
+        ]
+    });
+
+    const formattedTransactions = rows.map(tx => {
+        const plainTx = tx.toJSON();
+        const isOutgoing = plainTx.sender_wallet_id === wallet.id;
+
+        let counterparty = 'System';
+        if (plainTx.transaction_type === 'TOPUP') {
+            counterparty = 'Deposit';
+        } else {
+            const otherWallet = isOutgoing ? plainTx.receiverWallet : plainTx.senderWallet;
+            if (otherWallet && otherWallet.owner) {
+                const owner = otherWallet.owner;
+                counterparty = owner.business_name || `${owner.first_name} ${owner.last_name}`;
+            } else {
+                counterparty = 'Unknown';
+            }
+        }
+
+        delete plainTx.senderWallet;
+        delete plainTx.receiverWallet;
+
+        return {
+            ...plainTx,
+            isOutgoing,
+            counterparty,
+        };
     });
 
     return {
@@ -40,7 +83,7 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
         page,
         limit,
         totalPages: Math.ceil(count / limit),
-        transactions: rows,
+        transactions: formattedTransactions,
     };
 }
 
