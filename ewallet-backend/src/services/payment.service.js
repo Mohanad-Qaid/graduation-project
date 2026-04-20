@@ -82,6 +82,7 @@ async function processQRPayment({ senderUserId, merchantId, amount }) {
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
                 description: `QR payment to merchant`,
+                category: merchant.business_category || 'General',
             },
             { transaction: dbTxn }
         );

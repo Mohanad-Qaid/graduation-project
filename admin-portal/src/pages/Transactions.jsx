@@ -68,12 +68,12 @@ const Transactions = () => {
       title: 'From',
       key: 'sender',
       render: (_, record) => {
-        // senderWallet → User association (backend includes via eager loading)
-        const user = record.senderWallet?.user;
-        return user ? (
+        // senderWallet → User association (backend eager-loads with alias 'owner')
+        const sender = record.senderWallet?.owner;
+        return sender ? (
           <div>
-            <div>{user.full_name}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>{user.email}</div>
+            <div>{`${sender.first_name} ${sender.last_name}`}</div>
+            <div style={{ fontSize: 12, color: '#999' }}>{sender.email}</div>
           </div>
         ) : <span style={{ color: '#bbb' }}>System / Top-up</span>;
       },
@@ -82,11 +82,11 @@ const Transactions = () => {
       title: 'To',
       key: 'receiver',
       render: (_, record) => {
-        const user = record.receiverWallet?.user;
-        return user ? (
+        const receiver = record.receiverWallet?.owner;
+        return receiver ? (
           <div>
-            <div>{user.full_name}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>{user.email}</div>
+            <div>{`${receiver.first_name} ${receiver.last_name}`}</div>
+            <div style={{ fontSize: 12, color: '#999' }}>{receiver.email}</div>
           </div>
         ) : <span style={{ color: '#bbb' }}>Withdrawal</span>;
       },

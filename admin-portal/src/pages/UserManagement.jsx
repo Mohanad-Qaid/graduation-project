@@ -120,7 +120,7 @@ const UserManagement = () => {
             )}
           </div>
           <div>
-            <div style={{ fontWeight: 500 }}>{record.full_name}</div>
+            <div style={{ fontWeight: 500 }}>{`${record.first_name} ${record.last_name}`}</div>
             <div style={{ fontSize: 12, color: '#999' }}>{record.email}</div>
             <div style={{ fontSize: 11, color: '#bbb' }}>{record.phone}</div>
           </div>
@@ -179,7 +179,7 @@ const UserManagement = () => {
           <Button
             icon={<WalletOutlined />}
             size="small"
-            onClick={() => setTopupModal({ visible: true, userId: record.id, userName: record.full_name })}
+            onClick={() => setTopupModal({ visible: true, userId: record.id, userName: `${record.first_name} ${record.last_name}` })}
           >
             Top-Up
           </Button>

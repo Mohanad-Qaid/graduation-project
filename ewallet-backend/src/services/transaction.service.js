@@ -1,19 +1,12 @@
 'use strict';
 
-const { Transaction, Wallet, sequelize } = require('../models');
+const { Transaction, Wallet, User, FraudFlag, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 
 /**
  * Get transaction history for a wallet (paginated).
  * Returns both sent and received transactions.
- *
- * @param {object} params
- * @param {string} params.userId
- * @param {number} [params.page=1]
- * @param {number} [params.limit=20]
- * @param {string} [params.type]    - filter by transaction_type
- * @param {string} [params.status]  - filter by status
  */
 async function getTransactionHistory({ userId, page = 1, limit = 20, type, status }) {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
@@ -38,7 +31,7 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
         attributes: [
             'id', 'sender_wallet_id', 'receiver_wallet_id',
             'amount', 'transaction_type', 'status',
-            'reference_code', 'description', 'createdAt',
+            'reference_code', 'description', 'category', 'createdAt',
         ],
     });
 
@@ -52,39 +45,119 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
 }
 
 /**
- * Get monthly expense summary for a customer (grouped by month, outgoing only).
+ * Get expense summary for a customer, grouped by period.
+ * Returns totals, daily spending trend, and category breakdown.
+ *
  * @param {string} userId
- * @param {number} [year]  - defaults to current year
+ * @param {string} period - 'week' | 'month' | 'year'
  */
-async function getExpenseSummary(userId, year) {
+async function getExpenseSummary(userId, period = 'month') {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
-    const targetYear = year || new Date().getFullYear();
+    // ── Date range by period ───────────────────────────────────────────────
+    const now = new Date();
+    let startDate;
+    if (period === 'week') {
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+    } else if (period === 'year') {
+        startDate = new Date(now);
+        startDate.setFullYear(now.getFullYear() - 1);
+    } else {
+        // default: month
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 30);
+    }
 
-    const results = await Transaction.findAll({
+    const dateRange = { [Op.between]: [startDate, now] };
+
+    // ── Totals ─────────────────────────────────────────────────────────────
+    const outgoingPayments = await Transaction.findAll({
         where: {
             sender_wallet_id: wallet.id,
-            status: 'COMPLETED',
             transaction_type: 'PAYMENT',
-            createdAt: {
-                [Op.between]: [
-                    new Date(`${targetYear}-01-01`),
-                    new Date(`${targetYear}-12-31T23:59:59`),
-                ],
-            },
+            status: 'COMPLETED',
+            createdAt: dateRange,
         },
         attributes: [
-            [sequelize.fn('DATE_TRUNC', 'month', sequelize.col('createdAt')), 'month'],
             [sequelize.fn('SUM', sequelize.col('amount')), 'total'],
             [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
         ],
-        group: [sequelize.fn('DATE_TRUNC', 'month', sequelize.col('createdAt'))],
-        order: [[sequelize.fn('DATE_TRUNC', 'month', sequelize.col('createdAt')), 'ASC']],
         raw: true,
     });
 
-    return results;
+    const topups = await Transaction.findAll({
+        where: {
+            receiver_wallet_id: wallet.id,
+            transaction_type: 'TOPUP',
+            status: 'COMPLETED',
+            createdAt: dateRange,
+        },
+        attributes: [
+            [sequelize.fn('SUM', sequelize.col('amount')), 'total'],
+        ],
+        raw: true,
+    });
+
+    const spent = Number(outgoingPayments[0]?.total || 0);
+    const topupTotal = Number(topups[0]?.total || 0);
+    const transactionCount = Number(outgoingPayments[0]?.count || 0);
+
+    // ── Daily Spending Trend (outgoing PAYMENTs grouped by day) ───────────
+    const dailyRows = await Transaction.findAll({
+        where: {
+            sender_wallet_id: wallet.id,
+            transaction_type: 'PAYMENT',
+            status: 'COMPLETED',
+            createdAt: dateRange,
+        },
+        attributes: [
+            [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+            [sequelize.fn('SUM', sequelize.col('amount')), 'total'],
+        ],
+        group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+        order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+        raw: true,
+    });
+
+    const dailySpending = dailyRows.map((row) => ({
+        date: row.date,
+        total: Number(row.total || 0),
+    }));
+
+    // ── Category Breakdown ─────────────────────────────────────────────────
+    const categoryRows = await Transaction.findAll({
+        where: {
+            sender_wallet_id: wallet.id,
+            transaction_type: 'PAYMENT',
+            status: 'COMPLETED',
+            createdAt: dateRange,
+            category: { [Op.not]: null },
+        },
+        attributes: [
+            'category',
+            [sequelize.fn('SUM', sequelize.col('amount')), 'total'],
+        ],
+        group: ['category'],
+        order: [[sequelize.fn('SUM', sequelize.col('amount')), 'DESC']],
+        raw: true,
+    });
+
+    const categoryBreakdown = categoryRows.map((row) => ({
+        label: row.category,
+        value: Number(row.total || 0),
+    }));
+
+    return {
+        totals: {
+            spent: Number(spent.toFixed(2)),
+            topup: Number(topupTotal.toFixed(2)),
+            transactionCount,
+        },
+        dailySpending,
+        categoryBreakdown,
+    };
 }
 
 /**
@@ -101,6 +174,41 @@ async function getAllTransactions({ page = 1, limit = 50, type, status }) {
         limit,
         offset,
         order: [['createdAt', 'DESC']],
+        include: [
+            {
+                model: Wallet,
+                as: 'senderWallet',
+                attributes: ['id'],
+                required: false,
+                include: [
+                    {
+                        model: User,
+                        as: 'owner',
+                        attributes: ['id', 'first_name', 'last_name', 'email'],
+                    },
+                ],
+            },
+            {
+                model: Wallet,
+                as: 'receiverWallet',
+                attributes: ['id'],
+                required: false,
+                include: [
+                    {
+                        model: User,
+                        as: 'owner',
+                        attributes: ['id', 'first_name', 'last_name', 'email'],
+                    },
+                ],
+            },
+            {
+                model: FraudFlag,
+                as: 'fraudFlags',
+                attributes: ['id', 'risk_score'],
+                required: false,
+            },
+        ],
+        distinct: true,
     });
 
     return {

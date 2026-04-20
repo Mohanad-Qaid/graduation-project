@@ -13,7 +13,7 @@ const RequestWithdrawalScreen = ({ navigation }) => {
   const { isLoading, error, withdrawalSuccess } = useSelector(
     (state) => state.transactions
   );
-  const { balance } = useSelector((state) => state.wallet);
+  const { balance, currency } = useSelector((state) => state.wallet);
 
   const [amount, setAmount] = useState('');
   const [bankName, setBankName] = useState('');
@@ -100,7 +100,7 @@ const RequestWithdrawalScreen = ({ navigation }) => {
           <Card.Content>
             <Text variant="labelMedium">Available Balance</Text>
             <Text variant="headlineMedium" style={styles.balanceAmount}>
-              USD {balance.toFixed(2)}
+              {currency || 'USD'} {Number(balance || 0).toFixed(2)}
             </Text>
           </Card.Content>
         </Card>

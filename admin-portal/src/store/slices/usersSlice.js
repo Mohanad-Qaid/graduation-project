@@ -21,7 +21,7 @@ export const fetchPendingUsers = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/users/pending');
-      return response.data.data.users;
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch pending users');
     }
@@ -128,7 +128,7 @@ const usersSlice = createSlice({
       })
       .addCase(fetchPendingUsers.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.pending = action.payload;
+        state.pending = action.payload || [];
       })
       .addCase(fetchPendingUsers.rejected, (state, action) => {
         state.isLoading = false;

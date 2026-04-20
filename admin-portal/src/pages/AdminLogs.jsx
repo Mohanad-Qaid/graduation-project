@@ -16,9 +16,13 @@ const AdminLogs = () => {
     try {
       // Backend endpoint: GET /admin/logs?page&limit
       const response = await api.get('/admin/logs', { params: { page, limit: 50 } });
-      const data = response.data.data;
-      setLogs(data.logs || []);
-      setPagination(data.pagination || { page: 1, limit: 50, total: 0 });
+      const { data, meta } = response.data;
+      setLogs(data || []);
+      setPagination({
+        page: meta?.page || 1,
+        limit: meta?.limit || 50,
+        total: meta?.total || 0,
+      });
     } catch (error) {
       console.error('Failed to fetch admin logs:', error);
     } finally {
@@ -52,8 +56,10 @@ const AdminLogs = () => {
       width: 200,
       render: (_, record) => (
         <div>
-          {/* Backend: AdminLog has admin_id FK → User; returned as admin association */}
-          <div style={{ fontWeight: 500 }}>{record.admin?.full_name || '—'}</div>
+          {/* AdminLog.admin association: first_name / last_name from eager-load */}
+          <div style={{ fontWeight: 500 }}>
+            {record.admin ? `${record.admin.first_name} ${record.admin.last_name}` : '—'}
+          </div>
           <div style={{ fontSize: 12, color: '#999' }}>{record.admin?.email || '—'}</div>
         </div>
       ),
@@ -75,7 +81,11 @@ const AdminLogs = () => {
       width: 160,
       render: (_, record) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.targetUser?.full_name || '—'}</div>
+          <div style={{ fontWeight: 500 }}>
+            {record.targetUser
+              ? `${record.targetUser.first_name} ${record.targetUser.last_name}`
+              : '—'}
+          </div>
           <div style={{ fontSize: 11, color: '#999' }}>{record.targetUser?.email || ''}</div>
         </div>
       ),

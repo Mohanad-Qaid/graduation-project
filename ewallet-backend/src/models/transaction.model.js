@@ -56,6 +56,10 @@ module.exports = (sequelize) => {
                 type: DataTypes.TEXT,
                 allowNull: true,
             },
+            category: {
+                type: DataTypes.STRING(100),
+                allowNull: true, // only PAYMENT transactions have a category
+            },
         },
         {
             tableName: 'transactions',

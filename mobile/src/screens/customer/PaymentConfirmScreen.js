@@ -66,7 +66,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
           </View>
           <Text variant="headlineSmall" style={styles.successTitle}>Payment Successful!</Text>
           <Text variant="displaySmall" style={styles.successAmount}>
-            {currency} {parseFloat(paymentResult.amount).toFixed(2)}
+            {currency} {Number(paymentResult.amount || 0).toFixed(2)}
           </Text>
           <Text variant="bodyMedium" style={styles.successMerchant}>
             Paid to {businessName}
@@ -79,7 +79,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
             <Card.Content>
               <Text variant="labelMedium">New Balance</Text>
               <Text variant="titleLarge" style={styles.newBalance}>
-                {currency} {balance.toFixed(2)}
+                {currency} {Number(balance || 0).toFixed(2)}
               </Text>
             </Card.Content>
           </Card>
@@ -149,7 +149,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
                 variant="bodyLarge"
                 style={parsedAmount > 0 && !sufficientBalance ? styles.balanceLow : styles.balanceOk}
               >
-                {currency} {balance.toFixed(2)}
+                {currency} {Number(balance || 0).toFixed(2)}
               </Text>
             </View>
 
@@ -169,7 +169,7 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
           style={styles.payButton}
         >
           {parsedAmount > 0
-            ? `Pay ${currency} ${parsedAmount.toFixed(2)}`
+            ? `Pay ${currency} ${Number(parsedAmount || 0).toFixed(2)}`
             : 'Enter an Amount'}
         </Button>
 

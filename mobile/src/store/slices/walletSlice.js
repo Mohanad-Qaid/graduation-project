@@ -3,10 +3,11 @@ import api from '../../services/api';
 
 export const fetchBalance = createAsyncThunk(
   'wallet/fetchBalance',
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, rejectWithValue }) => {
     try {
-      // Correct endpoint: GET /api/v1/customer/wallet
-      const response = await api.get('/customer/wallet');
+      const role = getState().auth.user?.role;
+      const endpoint = role === 'MERCHANT' ? '/merchant/wallet' : '/customer/wallet';
+      const response = await api.get(endpoint);
       // Backend response shape: { success, message, data: wallet }
       return response.data.data;
     } catch (error) {

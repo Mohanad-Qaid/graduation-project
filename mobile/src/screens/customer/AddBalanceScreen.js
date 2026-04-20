@@ -62,7 +62,7 @@ const AddBalanceScreen = ({ navigation }) => {
         <Card.Content>
           <Text variant="labelMedium">Current Balance</Text>
           <Text variant="headlineMedium" style={styles.balanceAmount}>
-            {currency} {balance.toFixed(2)}
+            {currency} {Number(balance || 0).toFixed(2)}
           </Text>
         </Card.Content>
       </Card>

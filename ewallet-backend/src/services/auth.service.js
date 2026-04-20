@@ -75,6 +75,9 @@ async function login(dto) {
         throw createHttpError(401, 'Invalid credentials.');
     }
 
+    if (user.status === 'PENDING') {
+        throw createHttpError(403, 'Your account is under review. Please wait for admin approval.');
+    }
     if (user.status === 'REJECTED') {
         throw createHttpError(403, 'Your registration has been rejected.');
     }
@@ -82,6 +85,7 @@ async function login(dto) {
         throw createHttpError(403, 'Account is suspended. Contact support.');
     }
 
+    // Only APPROVED users reach this point — generate tokens
     const payload = { id: user.id, role: user.role, status: user.status };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken({ id: user.id });

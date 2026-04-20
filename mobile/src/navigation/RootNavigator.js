@@ -43,7 +43,7 @@ const RootNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : user?.role === 'merchant' ? (
+      ) : user?.role?.toUpperCase() === 'MERCHANT' ? (
         <Stack.Screen name="Merchant" component={MerchantNavigator} />
       ) : (
         <Stack.Screen name="Customer" component={CustomerNavigator} />

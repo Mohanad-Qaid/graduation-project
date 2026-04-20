@@ -13,32 +13,22 @@ export const fetchDashboardStats = createAsyncThunk(
   'dashboard/fetchStats',
   async (_, { rejectWithValue }) => {
     try {
-      // Fetch all four data sources in parallel
-      const [usersRes, txRes, withdrawalsRes, fraudRes] = await Promise.all([
-        api.get('/admin/users', { params: { limit: 1 } }),
-        api.get('/admin/transactions', { params: { limit: 1 } }),
-        api.get('/admin/withdrawals', { params: { status: 'PENDING', limit: 1 } }),
-        api.get('/admin/fraud-flags', { params: { reviewed: false, limit: 1 } }),
+      // Single stats endpoint + recent transactions list (2 requests instead of 5)
+      const [statsRes, recentRes] = await Promise.all([
+        api.get('/admin/stats'),
+        api.get('/admin/transactions', { params: { limit: 5 } }),
       ]);
 
-      const usersPagination = usersRes.data.data?.pagination || {};
-      const txPagination = txRes.data.data?.pagination || {};
-      const pendingWithdrawals = withdrawalsRes.data.data?.pagination?.total || 0;
-      const unreviewed = fraudRes.data.data?.pagination?.total || 0;
-
-      // Fetch a small recent transactions list for the table
-      const recentRes = await api.get('/admin/transactions', { params: { limit: 5 } });
+      const stats = statsRes.data.data;
       const recentTransactions = recentRes.data.data?.transactions || [];
 
       return {
-        totalUsers: usersPagination.total || 0,
-        totalTransactions: txPagination.total || 0,
-        pendingWithdrawals,
-        unreviewedFraudFlags: unreviewed,
+        totalUsers: stats.totalUsers || 0,
+        totalTransactions: stats.totalTransactions || 0,
+        pendingWithdrawals: stats.pendingWithdrawals || 0,
+        unreviewedFraudFlags: stats.unreviewedFraudFlags || 0,
         recentTransactions,
-        // NOTE: Daily volume chart data is static/placeholder — no backend endpoint yet
-        // TODO: Add GET /admin/stats/daily-volume to backend
-        dailyVolume: [],
+        dailyVolume: [], // placeholder — no time-series endpoint yet
       };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch dashboard stats');

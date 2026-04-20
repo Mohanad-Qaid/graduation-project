@@ -17,6 +17,9 @@ const router = Router();
 // All admin routes require authentication + ADMIN role (status not checked — admins are always APPROVED)
 router.use(authenticate, authorize('ADMIN'));
 
+// ─── Dashboard Stats ──────────────────────────────────────────────────────────
+router.get('/stats', controller.getDashboardStats);
+
 // ─── User Management ──────────────────────────────────────────────────────────
 router.get('/users', paginationRules, validate, controller.getAllUsers);
 router.get('/users/pending', controller.getPendingUsers);

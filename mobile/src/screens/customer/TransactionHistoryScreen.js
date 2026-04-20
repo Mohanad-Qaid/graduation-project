@@ -53,7 +53,7 @@ const TransactionHistoryScreen = () => {
   });
 
   const formatCurrency = (amount) => {
-    return `${currency} ${amount.toFixed(2)}`;
+    return `${currency} ${Number(amount || 0).toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
@@ -90,8 +90,8 @@ const TransactionHistoryScreen = () => {
                 tx.type === 'topup'
                   ? 'cash-plus'
                   : tx.isOutgoing
-                  ? 'arrow-up'
-                  : 'arrow-down'
+                    ? 'arrow-up'
+                    : 'arrow-down'
               }
               size={20}
               color={tx.isOutgoing ? '#F44336' : '#4CAF50'}

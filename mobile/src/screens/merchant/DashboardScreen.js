@@ -8,7 +8,7 @@ import { fetchMerchantDashboard, clearError } from '../../store/slices/walletSli
 const MerchantDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const { balance, merchantStats, isLoading, error } = useSelector((state) => state.wallet);
+  const { balance, currency, merchantStats, isLoading, error } = useSelector((state) => state.wallet);
 
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState('');
@@ -33,7 +33,7 @@ const MerchantDashboard = ({ navigation }) => {
     dispatch(clearError());
   };
 
-  const formatCurrency = (amount) => `TRY ${(amount || 0).toFixed(2)}`;
+  const formatCurrency = (amount) => `${currency || 'TRY'} ${Number(amount || 0).toFixed(2)}`;
 
   const displayName = user?.business_name
     || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()

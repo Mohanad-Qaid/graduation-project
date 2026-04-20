@@ -1,6 +1,7 @@
 'use strict';
 
-const { User, AdminLog, FraudFlag, sequelize } = require('../models');
+const { User, AdminLog, FraudFlag, Transaction, WithdrawalRequest, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
 
@@ -154,7 +155,7 @@ async function getFraudFlags({ page = 1, limit = 20, reviewed }) {
         offset,
         order: [['createdAt', 'DESC']],
     });
-    return { total: count, page, limit, totalPages: Math.ceil(count / limit), flags: rows };
+    return { total: count, page, limit, totalPages: Math.ceil(count / limit), fraudFlags: rows };
 }
 
 /**
@@ -184,8 +185,34 @@ async function getAdminLogs({ page = 1, limit = 50 }) {
         limit,
         offset,
         order: [['createdAt', 'DESC']],
+        include: [
+            {
+                model: User,
+                as: 'admin',
+                attributes: ['id', 'first_name', 'last_name', 'email'],
+            },
+            {
+                model: User,
+                as: 'targetUser',
+                attributes: ['id', 'first_name', 'last_name', 'email'],
+            },
+        ],
     });
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), logs: rows };
+}
+
+/**
+ * Aggregate counts needed by the admin dashboard in a single efficient call.
+ */
+async function getDashboardStats() {
+    const [totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags] =
+        await Promise.all([
+            User.count({ where: { role: { [Op.ne]: 'ADMIN' } } }),
+            Transaction.count(),
+            WithdrawalRequest.count({ where: { status: 'PENDING' } }),
+            FraudFlag.count({ where: { reviewed: false } }),
+        ]);
+    return { totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags };
 }
 
 module.exports = {
@@ -197,4 +224,5 @@ module.exports = {
     getFraudFlags,
     reviewFraudFlag,
     getAdminLogs,
+    getDashboardStats,
 };

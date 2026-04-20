@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/seeders/adminSeed.js",
+    "seed:demo": "node src/seeders/demoSeed.js",
     "lint": "eslint src/"
   },
   "engines": {
@@ -29,10 +30,17 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "eslint": "^8.57.0",
     "nodemon": "^3.1.0"
   },
-  "keywords": ["ewallet", "payment", "nodejs", "express", "postgresql"],
+  "keywords": [
+    "ewallet",
+    "payment",
+    "nodejs",
+    "express",
+    "postgresql"
+  ],
   "author": "E-Wallet Team",
   "license": "MIT"
 }

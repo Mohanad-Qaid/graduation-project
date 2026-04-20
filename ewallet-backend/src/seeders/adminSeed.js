@@ -14,10 +14,8 @@ const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 async function seedAdmin() {
     const email = process.env.SEED_ADMIN_EMAIL || 'admin@ewallet.com';
     const password = process.env.SEED_ADMIN_PASSWORD || 'Admin@123456';
-    const adminFullName = process.env.SEED_ADMIN_FULL_NAME || 'System Admin';
-    const nameParts = adminFullName.split(' ');
-    const first_name = nameParts[0] || 'System';
-    const last_name = nameParts.slice(1).join(' ') || 'Admin';
+    const first_name = process.env.SEED_ADMIN_FIRST_NAME || 'System';
+    const last_name = process.env.SEED_ADMIN_LAST_NAME || 'Admin';
     const phone = process.env.SEED_ADMIN_PHONE || '+905000000000';
 
     try {

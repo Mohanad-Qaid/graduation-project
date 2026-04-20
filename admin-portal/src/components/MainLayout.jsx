@@ -69,7 +69,7 @@ const MainLayout = ({ children }) => {
   const userMenuItems = [
     {
       key: 'profile',
-      label: admin?.full_name || 'Admin',   // Backend returns snake_case
+      label: admin ? `${admin.first_name} ${admin.last_name}` : 'Admin',   // first_name / last_name from backend
       disabled: true,
     },
     {
@@ -120,8 +120,8 @@ const MainLayout = ({ children }) => {
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#6200EE' }} />
-              {/* full_name from backend User model */}
-              <span>{admin?.full_name || 'Admin'}</span>
+              {/* first_name / last_name from backend User model */}
+              <span>{admin ? `${admin.first_name} ${admin.last_name}` : 'Admin'}</span>
             </Space>
           </Dropdown>
         </Header>

@@ -1,6 +1,6 @@
 'use strict';
 
-const { WithdrawalRequest, Wallet, Transaction, sequelize } = require('../models');
+const { WithdrawalRequest, Wallet, Transaction, User, sequelize } = require('../models');
 const { generateReferenceCode } = require('../utils/generateRef.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
@@ -142,6 +142,13 @@ async function listWithdrawalRequests({ page = 1, limit = 20, status }) {
         limit,
         offset,
         order: [['createdAt', 'DESC']],
+        include: [
+            {
+                model: User,
+                as: 'merchant',
+                attributes: ['id', 'first_name', 'last_name', 'email', 'business_name'],
+            },
+        ],
     });
 
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), requests: rows };

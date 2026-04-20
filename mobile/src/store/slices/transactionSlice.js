@@ -3,14 +3,17 @@ import api from '../../services/api';
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetch',
-  async ({ page = 1, type } = {}, { rejectWithValue }) => {
+  async ({ page = 1, type } = {}, { getState, rejectWithValue }) => {
     try {
+      const role = getState().auth.user?.role;
+      const endpoint = role === 'MERCHANT' ? '/merchant/transactions' : '/customer/transactions';
       const params = { page, limit: 20 };
       if (type) params.type = type;
-      const response = await api.get('/transactions', { params });
-      return { ...response.data, page };
+      const response = await api.get(endpoint, { params });
+      // response.data shape: { success, message, data: [...], meta: { total, page, limit, totalPages } }
+      return { data: response.data.data, meta: response.data.meta, page };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to fetch transactions');
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
     }
   }
 );
@@ -19,8 +22,10 @@ export const fetchExpenseStats = createAsyncThunk(
   'transactions/fetchStats',
   async (period = 'month', { rejectWithValue }) => {
     try {
-      const response = await api.get('/transactions/stats', { params: { period } });
-      return response.data;
+      // Correct endpoint: GET /api/v1/customer/expenses/summary
+      const response = await api.get('/customer/expenses/summary', { params: { period } });
+      // Backend wraps response: { success, message, data: { totals, dailySpending, categoryBreakdown } }
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch stats');
     }
@@ -56,7 +61,8 @@ export const requestWithdrawal = createAsyncThunk(
   'transactions/requestWithdrawal',
   async ({ amount, bankAccount, bankName }, { rejectWithValue }) => {
     try {
-      const response = await api.post('/withdrawals/request', {
+      // Correct endpoint: POST /api/v1/merchant/withdrawal
+      const response = await api.post('/merchant/withdrawal', {
         amount,
         bankAccount,
         bankName,
@@ -72,7 +78,8 @@ export const fetchWithdrawals = createAsyncThunk(
   'transactions/fetchWithdrawals',
   async ({ page = 1 } = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/withdrawals/history', { params: { page, limit: 20 } });
+      // Correct endpoint: GET /api/v1/merchant/withdrawal
+      const response = await api.get('/merchant/withdrawal', { params: { page, limit: 20 } });
       return { ...response.data, page };
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch withdrawals');
@@ -118,12 +125,13 @@ const transactionSlice = createSlice({
       })
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.isLoading = false;
+        const incoming = action.payload.data || [];
         if (action.payload.page === 1) {
-          state.list = action.payload.transactions;
+          state.list = incoming;
         } else {
-          state.list = [...state.list, ...action.payload.transactions];
+          state.list = [...state.list, ...incoming];
         }
-        state.pagination = action.payload.pagination;
+        state.pagination = action.payload.meta || null;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.isLoading = false;

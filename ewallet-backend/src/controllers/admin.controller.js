@@ -167,6 +167,18 @@ async function reviewFraudFlag(req, res, next) {
     }
 }
 
+// ─── Dashboard Stats ──────────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/stats */
+async function getDashboardStats(req, res, next) {
+    try {
+        const stats = await adminService.getDashboardStats();
+        return sendSuccess(res, { message: 'Dashboard stats retrieved.', data: stats });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // ─── Admin Logs ───────────────────────────────────────────────────────────────
 
 /** GET /api/v1/admin/logs */
@@ -197,4 +209,5 @@ module.exports = {
     getFraudFlags,
     reviewFraudFlag,
     getAdminLogs,
+    getDashboardStats,
 };

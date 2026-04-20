@@ -73,8 +73,8 @@ async function getTransactions(req, res, next) {
  */
 async function getExpenseSummary(req, res, next) {
     try {
-        const { year } = req.query;
-        const summary = await transactionService.getExpenseSummary(req.user.id, year ? parseInt(year, 10) : undefined);
+        const { period } = req.query;
+        const summary = await transactionService.getExpenseSummary(req.user.id, period);
         return sendSuccess(res, { message: 'Expense summary retrieved.', data: summary });
     } catch (err) {
         next(err);

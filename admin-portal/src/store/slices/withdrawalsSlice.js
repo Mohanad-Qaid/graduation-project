@@ -23,7 +23,7 @@ export const fetchPendingWithdrawals = createAsyncThunk(
       const response = await api.get('/admin/withdrawals', {
         params: { status: 'PENDING', limit: 100 },
       });
-      return response.data.data.withdrawals;
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch withdrawals');
     }
@@ -89,7 +89,7 @@ const withdrawalsSlice = createSlice({
       })
       .addCase(fetchPendingWithdrawals.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.pending = action.payload;
+        state.pending = action.payload || [];
       })
       .addCase(fetchPendingWithdrawals.rejected, (state, action) => {
         state.isLoading = false;

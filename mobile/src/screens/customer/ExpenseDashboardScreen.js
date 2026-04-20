@@ -21,12 +21,12 @@ const ExpenseDashboardScreen = () => {
   }, [dispatch, period]);
 
   const formatCurrency = (amount) => {
-    return `${currency} ${amount.toFixed(2)}`;
+    return `${currency} ${Number(amount || 0).toFixed(2)}`;
   };
 
   const pieChartData = stats?.categoryBreakdown?.map((cat, index) => ({
-    name: cat.category,
-    amount: cat.total,
+    name: cat.label,
+    amount: Number(cat.value || 0),
     color: COLORS[index % COLORS.length],
     legendFontColor: '#7F7F7F',
     legendFontSize: 12,
@@ -160,15 +160,15 @@ const ExpenseDashboardScreen = () => {
             <Text variant="bodyLarge" style={styles.statValue}>
               {stats?.totals?.transactionCount > 0
                 ? formatCurrency(
-                    (stats?.totals?.spent || 0) / stats?.totals?.transactionCount
-                  )
+                  (stats?.totals?.spent || 0) / stats?.totals?.transactionCount
+                )
                 : formatCurrency(0)}
             </Text>
           </View>
           <View style={styles.statRow}>
             <Text variant="bodyMedium">Top Category</Text>
             <Text variant="bodyLarge" style={styles.statValue}>
-              {stats?.categoryBreakdown?.[0]?.category || 'N/A'}
+              {stats?.categoryBreakdown?.[0]?.label || 'N/A'}
             </Text>
           </View>
         </Card.Content>

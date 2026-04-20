@@ -10,6 +10,7 @@ const WithdrawalHistoryScreen = ({ navigation }) => {
   const { withdrawals, withdrawalPagination, isLoading } = useSelector(
     (state) => state.transactions
   );
+  const { currency } = useSelector((state) => state.wallet);
 
   const loadWithdrawals = useCallback(
     (page = 1) => {
@@ -73,7 +74,7 @@ const WithdrawalHistoryScreen = ({ navigation }) => {
         <View style={styles.cardHeader}>
           <View style={styles.amountContainer}>
             <Text variant="titleLarge" style={styles.amount}>
-              ${item.amount.toFixed(2)}
+              {currency || 'USD'} {Number(item.amount || 0).toFixed(2)}
             </Text>
             <Chip
               icon={() => (

@@ -33,6 +33,10 @@ module.exports = (sequelize) => {
                 type: DataTypes.STRING(150),
                 allowNull: true, // only MERCHANT users have this
             },
+            business_category: {
+                type: DataTypes.STRING(100),
+                allowNull: true, // only MERCHANT users have this
+            },
             email: {
                 type: DataTypes.STRING(150),
                 allowNull: false,

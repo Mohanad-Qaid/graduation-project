@@ -38,7 +38,7 @@ const DashboardScreen = ({ navigation }) => {
     dispatch(clearTxError());
   };
 
-  const formatCurrency = (amount) => `${currency} ${(amount || 0).toFixed(2)}`;
+  const formatCurrency = (amount) => `${currency} ${Number(amount || 0).toFixed(2)}`;
 
   const firstName = user?.first_name || 'there';
   const recentTransactions = transactions.slice(0, 3);

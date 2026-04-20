@@ -10,6 +10,7 @@ const TransactionHistoryScreen = () => {
   const { list: transactions, pagination, isLoading } = useSelector(
     (state) => state.transactions
   );
+  const { currency } = useSelector((state) => state.wallet);
 
   const loadTransactions = useCallback(
     (page = 1) => {
@@ -29,7 +30,7 @@ const TransactionHistoryScreen = () => {
   };
 
   const formatCurrency = (amount) => {
-    return `USD ${amount.toFixed(2)}`;
+    return `${currency || 'USD'} ${Number(amount || 0).toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
@@ -52,8 +53,8 @@ const TransactionHistoryScreen = () => {
               tx.type === 'withdrawal'
                 ? styles.withdrawalIcon
                 : tx.isOutgoing
-                ? styles.outgoingIcon
-                : styles.incomingIcon,
+                  ? styles.outgoingIcon
+                  : styles.incomingIcon,
             ]}
           >
             <Icon
@@ -61,16 +62,16 @@ const TransactionHistoryScreen = () => {
                 tx.type === 'withdrawal'
                   ? 'bank-transfer-out'
                   : tx.isOutgoing
-                  ? 'arrow-up'
-                  : 'arrow-down'
+                    ? 'arrow-up'
+                    : 'arrow-down'
               }
               size={20}
               color={
                 tx.type === 'withdrawal'
                   ? '#FF9800'
                   : tx.isOutgoing
-                  ? '#F44336'
-                  : '#4CAF50'
+                    ? '#F44336'
+                    : '#4CAF50'
               }
             />
           </View>
@@ -93,8 +94,8 @@ const TransactionHistoryScreen = () => {
             tx.type === 'withdrawal'
               ? styles.withdrawalAmount
               : tx.isOutgoing
-              ? styles.outgoingAmount
-              : styles.incomingAmount,
+                ? styles.outgoingAmount
+                : styles.incomingAmount,
           ]}
         >
           {tx.isOutgoing || tx.type === 'withdrawal' ? '-' : '+'}

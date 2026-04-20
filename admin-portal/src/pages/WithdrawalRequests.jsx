@@ -56,8 +56,12 @@ const WithdrawalRequests = () => {
       key: 'merchant',
       render: (_, record) => (
         <div>
-          {/* Backend association: merchant (User) via merchant_id */}
-          <div style={{ fontWeight: 500 }}>{record.merchant?.full_name || '—'}</div>
+          {/* WithdrawalRequest.merchant association: first_name / last_name from eager-load */}
+          <div style={{ fontWeight: 500 }}>
+            {record.merchant
+              ? `${record.merchant.first_name} ${record.merchant.last_name}`
+              : '—'}
+          </div>
           <div style={{ fontSize: 12, color: '#999' }}>{record.merchant?.email || '—'}</div>
         </div>
       ),
