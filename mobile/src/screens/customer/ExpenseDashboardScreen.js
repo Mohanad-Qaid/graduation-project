@@ -21,7 +21,7 @@ const ExpenseDashboardScreen = () => {
   }, [dispatch, period]);
 
   const formatCurrency = (amount) => {
-    return `${currency} ${Number(amount || 0).toFixed(2)}`;
+    return `${Number(amount || 0).toFixed(2)} ${currency}`;
   };
 
   const pieChartData = stats?.categoryBreakdown?.map((cat, index) => ({

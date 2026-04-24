@@ -1,8 +1,9 @@
 'use strict';
 
 const bcrypt = require('bcrypt');
+const geoip = require('geoip-lite');
 const { User, Wallet, sequelize } = require('../models');
-const { generateAccessToken, generateRefreshToken } = require('../utils/jwt.util');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
@@ -14,10 +15,10 @@ const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 /**
  * Register a new user (CUSTOMER or MERCHANT).
  * Creates the user and provisions a wallet inside a DB transaction.
- * @param {object} dto - { first_name, last_name, email, phone, password, role, business_name? }
+ * @param {object} dto - { first_name, last_name, email, phone, password, role, business_name?, registrationIp? }
  */
 async function register(dto) {
-    const { first_name, last_name, email, phone, password, role, business_name } = dto;
+    const { first_name, last_name, email, phone, password, role, business_name, registrationIp } = dto;
 
     if (role === 'ADMIN') {
         throw createHttpError(403, 'Cannot self-register as ADMIN.');
@@ -27,8 +28,22 @@ async function register(dto) {
     try {
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
+        // Derive registration geolocation from IP (offline, no external API)
+        let registration_country = null;
+        let registration_city = null;
+        if (registrationIp) {
+            const geo = geoip.lookup(registrationIp);
+            if (geo) {
+                registration_country = geo.country || null;
+                registration_city = geo.city || null;
+            }
+        }
+
         const user = await User.create(
-            { first_name, last_name, business_name: business_name || null, email, phone, password_hash, role },
+            {
+                first_name, last_name, business_name: business_name || null, email, phone, password_hash, role,
+                registration_country, registration_city
+            },
             { transaction: dbTxn }
         );
 
@@ -93,6 +108,12 @@ async function login(dto) {
     const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
     await redisClient.setex(`refresh:${user.id}`, REFRESH_TTL_SECONDS, refreshToken);
 
+    // Best-effort: update last_login_ip for impossible-travel fraud detection
+    if (dto.loginIp) {
+        User.update({ last_login_ip: dto.loginIp }, { where: { id: user.id } })
+            .catch((e) => logger.warn('[auth] Failed to update last_login_ip:', e.message));
+    }
+
     return {
         accessToken,
         refreshToken,
@@ -136,4 +157,39 @@ async function logout(userId, accessToken) {
     await redisClient.setex(`blocklist:${accessToken}`, BLOCKLIST_TTL, '1');
 }
 
-module.exports = { register, login, getMe, logout };
+// ─── Refresh ──────────────────────────────────────────────────────────────────
+
+/**
+ * Exchange a valid refresh token for a new access token.
+ * Validates the JWT signature AND checks the token matches what Redis has stored
+ * to prevent replay attacks with revoked tokens.
+ * @param {string} refreshToken
+ * @returns {{ accessToken: string }}
+ */
+async function refreshAccessToken(refreshToken) {
+    let decoded;
+    try {
+        decoded = verifyRefreshToken(refreshToken);
+    } catch (err) {
+        throw createHttpError(401, 'Refresh token is invalid or expired.');
+    }
+
+    // Check Redis to ensure this refresh token has not been revoked (e.g. by logout)
+    const stored = await redisClient.get(`refresh:${decoded.id}`);
+    if (!stored || stored !== refreshToken) {
+        throw createHttpError(401, 'Refresh token has been revoked. Please log in again.');
+    }
+
+    const user = await User.findByPk(decoded.id, {
+        attributes: ['id', 'role', 'status'],
+    });
+    if (!user) throw createHttpError(401, 'User not found.');
+    if (user.status === 'SUSPENDED') throw createHttpError(403, 'Account is suspended.');
+
+    const payload = { id: user.id, role: user.role, status: user.status };
+    const accessToken = generateAccessToken(payload);
+
+    return { accessToken };
+}
+
+module.exports = { register, login, getMe, logout, refreshAccessToken };

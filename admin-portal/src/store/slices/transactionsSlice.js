@@ -7,8 +7,7 @@ export const fetchTransactions = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/transactions', { params });
-      // Response: { success, data: { transactions, pagination } }
-      return response.data.data;
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
     }
@@ -23,8 +22,7 @@ export const fetchFraudFlags = createAsyncThunk(
       const response = await api.get('/admin/fraud-flags', {
         params: { ...params, reviewed: params.reviewed ?? false },
       });
-      // Response: { success, data: { fraudFlags, pagination } }
-      return response.data.data;
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch fraud flags');
     }
@@ -66,8 +64,8 @@ const transactionsSlice = createSlice({
       })
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = action.payload.transactions || [];
-        state.pagination = action.payload.pagination;
+        state.list = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.isLoading = false;
@@ -78,8 +76,8 @@ const transactionsSlice = createSlice({
       })
       .addCase(fetchFraudFlags.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.fraudFlags = action.payload.fraudFlags;
-        state.fraudFlagsMeta = action.payload.pagination;
+        state.fraudFlags = action.payload.data || [];
+        state.fraudFlagsMeta = action.payload.meta || null;
       })
       .addCase(fetchFraudFlags.rejected, (state, action) => {
         state.isLoading = false;

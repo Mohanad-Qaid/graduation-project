@@ -8,7 +8,7 @@ const { sendSuccess } = require('../utils/response.util');
  */
 async function register(req, res, next) {
     try {
-        const user = await authService.register(req.body);
+        const user = await authService.register({ ...req.body, registrationIp: req.ip });
         return sendSuccess(res, {
             statusCode: 201,
             message: 'Registration successful. Awaiting admin approval.',
@@ -24,7 +24,7 @@ async function register(req, res, next) {
  */
 async function login(req, res, next) {
     try {
-        const result = await authService.login(req.body);
+        const result = await authService.login({ ...req.body, loginIp: req.ip });
         return sendSuccess(res, { message: 'Login successful.', data: result });
     } catch (err) {
         next(err);
@@ -57,4 +57,21 @@ async function logout(req, res, next) {
     }
 }
 
-module.exports = { register, login, getMe, logout };
+/**
+ * POST /api/v1/auth/refresh
+ * No authentication middleware — access token may be expired.
+ */
+async function refreshToken(req, res, next) {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken) {
+            return res.status(400).json({ success: false, message: 'Refresh token is required.' });
+        }
+        const result = await authService.refreshAccessToken(refreshToken);
+        return sendSuccess(res, { message: 'Access token refreshed.', data: result });
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { register, login, getMe, logout, refreshToken };

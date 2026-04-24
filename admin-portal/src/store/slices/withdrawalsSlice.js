@@ -7,8 +7,7 @@ export const fetchWithdrawals = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/withdrawals', { params });
-      // Response: { success, data: { withdrawals, pagination } }
-      return response.data.data;
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch withdrawals');
     }
@@ -77,8 +76,8 @@ const withdrawalsSlice = createSlice({
       })
       .addCase(fetchWithdrawals.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = action.payload.withdrawals;
-        state.pagination = action.payload.pagination;
+        state.list = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(fetchWithdrawals.rejected, (state, action) => {
         state.isLoading = false;

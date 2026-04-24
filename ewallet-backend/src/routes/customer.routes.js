@@ -19,6 +19,8 @@ router.get('/wallet', controller.getWallet);
 // POST /api/v1/customer/wallet/topup
 router.post('/wallet/topup', topUpRules, validate, controller.topUp);
 
+router.post('/wallet/topup/intent', controller.createTopUpIntent);
+
 // POST /api/v1/customer/pay
 router.post('/pay', paymentRateLimiter, payQRRules, validate, controller.payViaQR);
 

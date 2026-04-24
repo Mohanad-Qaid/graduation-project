@@ -18,10 +18,10 @@ export const fetchBalance = createAsyncThunk(
 
 export const topUp = createAsyncThunk(
   'wallet/topUp',
-  async (amount, { rejectWithValue }) => {
+  async ({ amount, paymentIntentId }, { rejectWithValue }) => {
     try {
       // Correct endpoint: POST /api/v1/customer/wallet/topup
-      const response = await api.post('/customer/wallet/topup', { amount });
+      const response = await api.post('/customer/wallet/topup', { amount, paymentIntentId });
       return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Top-up failed');

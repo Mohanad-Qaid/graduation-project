@@ -54,6 +54,10 @@ const topUpRules = [
     body('amount')
         .isFloat({ gt: 0 })
         .withMessage('Amount must be a positive number.'),
+    body('paymentIntentId')
+        .trim()
+        .notEmpty()
+        .withMessage('Payment intent ID is required.'),
     body('description').optional().trim().isLength({ max: 255 }),
 ];
 

@@ -21,7 +21,7 @@ const logger = require('../utils/logger.util');
  * @param {number} params.amount        - Amount entered by the customer
  * @returns {object} transaction record
  */
-async function processQRPayment({ senderUserId, merchantId, amount }) {
+async function processQRPayment({ senderUserId, merchantId, amount, transactionIp }) {
     const dbTxn = await sequelize.transaction();
 
     try {
@@ -56,6 +56,7 @@ async function processQRPayment({ senderUserId, merchantId, amount }) {
 
         // ── Step 4: Check sufficient balance ───────────────────────────────
         const senderBalance = parseFloat(senderWallet.balance);
+        const senderBalanceBefore = senderBalance; // captured before deduction for Gemini context
         if (senderBalance < paymentAmount) {
             throw createHttpError(400, `Insufficient balance. Available: ${senderBalance}, Required: ${paymentAmount}`);
         }
@@ -90,12 +91,16 @@ async function processQRPayment({ senderUserId, merchantId, amount }) {
         // ── Commit ─────────────────────────────────────────────────────────
         await dbTxn.commit();
 
-        // ── Step 9: Non-blocking fraud evaluation ──────────────────────────
+        // ── Step 9: Non-blocking fraud evaluation (fire-and-forget post-commit) ──
         evaluateAndFlagTransaction({
             transactionId: txnRecord.id,
             senderWalletId: senderWallet.id,
+            receiverWalletId: receiverWallet.id,
             amount: paymentAmount,
-        }).catch((err) => logger.error('Fraud evaluation error:', err.message));
+            transactionType: 'PAYMENT',
+            senderBalanceBefore,
+            transactionIp,
+        }).catch((err) => logger.error('[fraud] Evaluation error:', err.message));
 
         return txnRecord;
     } catch (err) {

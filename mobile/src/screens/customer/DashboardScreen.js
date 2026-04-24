@@ -41,7 +41,7 @@ const DashboardScreen = ({ navigation }) => {
   const formatCurrency = (amount) => `${Number(amount || 0).toFixed(2)}  ${currency}`;
 
   const firstName = user?.first_name || 'there';
-  const recentTransactions = transactions.slice(0, 6);
+  const recentTransactions = transactions.slice(0, 4);
   const isRefreshing = walletLoading || txLoading;
 
   return (

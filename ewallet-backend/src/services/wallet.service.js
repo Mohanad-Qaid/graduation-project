@@ -15,9 +15,11 @@ const logger = require('../utils/logger.util');
  * @param {string} params.description
  * @returns {object} transaction record
  */
-async function topUpWallet({ userId, amount, description }) {
+async function topUpWallet({ userId, amount, description, transactionIp }) {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
+
+    const balanceBefore = parseFloat(wallet.balance); // captured for Gemini context
 
     const dbTxn = await sequelize.transaction();
     try {
@@ -40,6 +42,17 @@ async function topUpWallet({ userId, amount, description }) {
         );
 
         await dbTxn.commit();
+
+        // Non-blocking fraud evaluation — catches suspicious large top-ups to new accounts
+        evaluateAndFlagTransaction({
+            transactionId: txn.id,
+            senderWalletId: wallet.id,  // used for velocity tracking
+            amount,
+            transactionType: 'TOPUP',
+            senderBalanceBefore: balanceBefore,
+            transactionIp,
+        }).catch((err) => logger.error('[fraud] Top-up evaluation error:', err.message));
+
         return txn;
     } catch (err) {
         await dbTxn.rollback();

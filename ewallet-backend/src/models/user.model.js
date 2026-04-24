@@ -67,6 +67,21 @@ module.exports = (sequelize) => {
                 allowNull: false,
                 defaultValue: 'PENDING',
             },
+            // Geolocation fields — set once at registration via geoip-lite (offline DB)
+            // Used to detect "Impossible Travel" during fraud evaluation
+            registration_country: {
+                type: DataTypes.STRING(3),   // ISO-3166 alpha-2, e.g. 'TR'
+                allowNull: true,
+            },
+            registration_city: {
+                type: DataTypes.STRING(100),
+                allowNull: true,
+            },
+            // Last known IP — updated on each successful login
+            last_login_ip: {
+                type: DataTypes.STRING(45),  // Supports IPv4 and IPv6
+                allowNull: true,
+            },
         },
         {
             tableName: 'users',

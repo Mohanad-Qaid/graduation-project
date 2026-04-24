@@ -7,6 +7,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store } from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import { initDatabase } from './src/services/offlineDb';
+import { injectStore } from './src/services/api';
+import { StripeProvider } from '@stripe/stripe-react-native';
+import { STRIPE_PUBLISHABLE_KEY } from './src/config/stripe';
 
 const theme = {
   ...MD3LightTheme,
@@ -20,6 +23,10 @@ const theme = {
   },
 };
 
+// Inject Redux store into the API layer immediately so that the Axios
+// response interceptor can dispatch logout when refresh tokens expire.
+injectStore(store);
+
 const App = () => {
   useEffect(() => {
     initDatabase();
@@ -29,10 +36,12 @@ const App = () => {
     <Provider store={store}>
       <PaperProvider theme={theme}>
         <SafeAreaProvider>
-          <NavigationContainer>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-            <RootNavigator />
-          </NavigationContainer>
+          <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+            <NavigationContainer>
+              <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+              <RootNavigator />
+            </NavigationContainer>
+          </StripeProvider>
         </SafeAreaProvider>
       </PaperProvider>
     </Provider>

@@ -21,4 +21,7 @@ router.get('/me', authenticate, controller.getMe);
 // POST /api/v1/auth/logout
 router.post('/logout', authenticate, controller.logout);
 
+// POST /api/v1/auth/refresh  — no authenticate middleware, access token is already expired
+router.post('/refresh', authRateLimiter, controller.refreshToken);
+
 module.exports = router;

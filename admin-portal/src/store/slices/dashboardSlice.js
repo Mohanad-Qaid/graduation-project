@@ -20,7 +20,7 @@ export const fetchDashboardStats = createAsyncThunk(
       ]);
 
       const stats = statsRes.data.data;
-      const recentTransactions = recentRes.data.data?.transactions || [];
+      const recentTransactions = recentRes.data.data || [];
 
       return {
         totalUsers: stats.totalUsers || 0,

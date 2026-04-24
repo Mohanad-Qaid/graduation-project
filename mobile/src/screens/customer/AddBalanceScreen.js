@@ -3,8 +3,10 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, Card, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { topUp, clearTopUpSuccess, clearError, fetchBalance } from '../../store/slices/walletSlice';
+import { useStripe } from '@stripe/stripe-react-native';
+import api from '../../services/api';
 
-const QUICK_AMOUNTS = [50, 100, 200, 500];
+const QUICK_AMOUNTS = [100, 200, 500, 1000];
 
 const AddBalanceScreen = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -13,6 +15,10 @@ const AddBalanceScreen = ({ navigation }) => {
   );
 
   const [amount, setAmount] = useState('');
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   useEffect(() => {
     if (topUpSuccess) {
@@ -28,15 +34,57 @@ const AddBalanceScreen = ({ navigation }) => {
     return () => {
       dispatch(clearError());
       dispatch(clearTopUpSuccess());
+      setLocalError(null);
     };
   }, [dispatch]);
 
-  const handleTopUp = () => {
+  const handleTopUp = async () => {
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
       return;
     }
-    dispatch(topUp(numAmount));
+
+    setLocalError(null);
+    setIsPaymentLoading(true);
+
+    try {
+      // 1. Fetch Intent
+      const response = await api.post('/customer/wallet/topup/intent', { amount: numAmount });
+      const { clientSecret, paymentIntentId } = response.data.data;
+
+      // 2. Init Sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'E-Wallet',
+        allowsDelayedPaymentMethods: true,
+      });
+
+      if (initError) {
+        setLocalError(initError.message || 'Failed to initialize payment sheet.');
+        setIsPaymentLoading(false);
+        return;
+      }
+
+      // 3. Present Sheet
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        setIsPaymentLoading(false);
+        if (presentError.code === 'Canceled') {
+          return; // Ignore cancellation
+        }
+        setLocalError(presentError.message || 'Payment failed.');
+        return;
+      }
+
+      // 4. Payment succeeded with Stripe, process in backend
+      dispatch(topUp({ amount: numAmount, paymentIntentId }));
+
+    } catch (err) {
+      setLocalError(err.response?.data?.message || err.message || 'An error occurred during payment.');
+    } finally {
+      setIsPaymentLoading(false);
+    }
   };
 
   const selectQuickAmount = (value) => {
@@ -62,7 +110,7 @@ const AddBalanceScreen = ({ navigation }) => {
         <Card.Content>
           <Text variant="labelMedium">Current Balance</Text>
           <Text variant="headlineMedium" style={styles.balanceAmount}>
-            {currency} {Number(balance || 0).toFixed(2)}
+            {Number(balance || 0).toFixed(2)} {currency}
           </Text>
         </Card.Content>
       </Card>
@@ -78,8 +126,10 @@ const AddBalanceScreen = ({ navigation }) => {
               mode={amount === value.toString() ? 'contained' : 'outlined'}
               onPress={() => selectQuickAmount(value)}
               style={styles.quickButton}
+              contentStyle={{ height: 40, paddingHorizontal: 0 }}
+              labelStyle={{ fontSize: 16, marginHorizontal: 0 }}
             >
-              ${value}
+              {value}
             </Button>
           ))}
         </View>
@@ -93,31 +143,30 @@ const AddBalanceScreen = ({ navigation }) => {
           onChangeText={setAmount}
           mode="outlined"
           keyboardType="decimal-pad"
-          left={<TextInput.Affix text="$" />}
+          right={<TextInput.Affix text="TRY" />}
           style={styles.input}
         />
 
         <Button
           mode="contained"
           onPress={handleTopUp}
-          loading={isLoading}
-          disabled={isLoading || !amount || parseFloat(amount) <= 0}
+          loading={isLoading || isPaymentLoading}
+          disabled={isLoading || isPaymentLoading || !amount || parseFloat(amount) <= 0}
           style={styles.submitButton}
         >
-          Add {amount ? `$${amount}` : 'Money'}
+          Add {amount ? `${amount} TRY` : 'Money'}
         </Button>
-
-        <Text variant="bodySmall" style={styles.note}>
-          This is a simulated top-up for demonstration purposes.
-        </Text>
       </View>
 
       <Snackbar
-        visible={!!error}
-        onDismiss={() => dispatch(clearError())}
+        visible={!!error || !!localError}
+        onDismiss={() => {
+          dispatch(clearError());
+          setLocalError(null);
+        }}
         duration={3000}
       >
-        {error}
+        {error || localError}
       </Snackbar>
 
       <Snackbar
@@ -164,12 +213,14 @@ const styles = StyleSheet.create({
   },
   quickAmounts: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 10,
   },
   quickButton: {
-    flex: 1,
-    marginHorizontal: 4,
+    width: '22%',
+    marginHorizontal: '1.5%',
+    marginVertical: 5,
   },
   input: {
     marginBottom: 20,

@@ -7,8 +7,8 @@ export const fetchUsers = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/users', { params });
-      // Response: { success, data: { users, pagination } }
-      return response.data.data;
+      // Return the full response.data which contains { success, message, data: users, meta: pagination }
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
     }
@@ -116,8 +116,8 @@ const usersSlice = createSlice({
       })
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = action.payload.users;
-        state.pagination = action.payload.pagination;
+        state.list = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(fetchUsers.rejected, (state, action) => {
         state.isLoading = false;
