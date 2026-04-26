@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, Card, Snackbar } from 'react-native-paper';
+import {
+  View,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+} from 'react-native';
+import { TextInput, Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { topUp, clearTopUpSuccess, clearError, fetchBalance } from '../../store/slices/walletSlice';
 import { useStripe } from '@stripe/stripe-react-native';
 import api from '../../services/api';
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000];
+const PURPLE_DARK = '#1A006B';
+const PURPLE_MAIN = '#6200EE';
 
 const AddBalanceScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { balance, currency, isLoading, error, topUpSuccess } = useSelector(
-    (state) => state.wallet
-  );
+  const { isLoading, error, topUpSuccess } = useSelector((state) => state.wallet);
 
   const [amount, setAmount] = useState('');
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
@@ -22,7 +31,7 @@ const AddBalanceScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (topUpSuccess) {
-      dispatch(fetchBalance()); // refresh balance from backend
+      dispatch(fetchBalance());
       setTimeout(() => {
         dispatch(clearTopUpSuccess());
         navigation.goBack();
@@ -40,19 +49,15 @@ const AddBalanceScreen = ({ navigation }) => {
 
   const handleTopUp = async () => {
     const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return;
-    }
+    if (isNaN(numAmount) || numAmount <= 0) return;
 
     setLocalError(null);
     setIsPaymentLoading(true);
 
     try {
-      // 1. Fetch Intent
       const response = await api.post('/customer/wallet/topup/intent', { amount: numAmount });
       const { clientSecret, paymentIntentId } = response.data.data;
 
-      // 2. Init Sheet
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
         merchantDisplayName: 'E-Wallet',
@@ -65,21 +70,16 @@ const AddBalanceScreen = ({ navigation }) => {
         return;
       }
 
-      // 3. Present Sheet
       const { error: presentError } = await presentPaymentSheet();
 
       if (presentError) {
         setIsPaymentLoading(false);
-        if (presentError.code === 'Canceled') {
-          return; // Ignore cancellation
-        }
+        if (presentError.code === 'Canceled') return;
         setLocalError(presentError.message || 'Payment failed.');
         return;
       }
 
-      // 4. Payment succeeded with Stripe, process in backend
       dispatch(topUp({ amount: numAmount, paymentIntentId }));
-
     } catch (err) {
       setLocalError(err.response?.data?.message || err.message || 'An error occurred during payment.');
     } finally {
@@ -87,56 +87,50 @@ const AddBalanceScreen = ({ navigation }) => {
     }
   };
 
-  const selectQuickAmount = (value) => {
-    setAmount(value.toString());
-  };
+  const loading = isLoading || isPaymentLoading;
+  const disabled = loading || !amount || parseFloat(amount) <= 0;
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <Button icon="arrow-left" onPress={() => navigation.goBack()}>
-          Back
-        </Button>
-        <Text variant="titleLarge" style={styles.title}>
-          Add Balance
-        </Text>
-        <View style={{ width: 80 }} />
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-left" size={22} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Add Balance</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <Card style={styles.balanceCard}>
-        <Card.Content>
-          <Text variant="labelMedium">Current Balance</Text>
-          <Text variant="headlineMedium" style={styles.balanceAmount}>
-            {Number(balance || 0).toFixed(2)} {currency}
-          </Text>
-        </Card.Content>
-      </Card>
-
-      <View style={styles.content}>
-        <Text variant="titleMedium" style={styles.sectionTitle}>
-          Quick Amount
-        </Text>
-        <View style={styles.quickAmounts}>
-          {QUICK_AMOUNTS.map((value) => (
-            <Button
-              key={value}
-              mode={amount === value.toString() ? 'contained' : 'outlined'}
-              onPress={() => selectQuickAmount(value)}
-              style={styles.quickButton}
-              contentStyle={{ height: 40, paddingHorizontal: 0 }}
-              labelStyle={{ fontSize: 16, marginHorizontal: 0 }}
-            >
-              {value}
-            </Button>
-          ))}
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {/* Quick Amounts */}
+        <Text style={styles.sectionLabel}>Quick Select</Text>
+        <View style={styles.quickRow}>
+          {QUICK_AMOUNTS.map((val) => {
+            const active = amount === val.toString();
+            return (
+              <TouchableOpacity
+                key={val}
+                style={[styles.quickChip, active && styles.quickChipActive]}
+                onPress={() => setAmount(val.toString())}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>
+                  {val} TRY
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <Text variant="titleMedium" style={styles.sectionTitle}>
-          Or Enter Amount
-        </Text>
+        {/* Manual Input */}
+        <Text style={styles.sectionLabel}>Or Enter Amount</Text>
         <TextInput
           label="Amount"
           value={amount}
@@ -145,25 +139,32 @@ const AddBalanceScreen = ({ navigation }) => {
           keyboardType="decimal-pad"
           right={<TextInput.Affix text="TRY" />}
           style={styles.input}
+          outlineColor="#E0E0E0"
+          activeOutlineColor={PURPLE_MAIN}
         />
 
-        <Button
-          mode="contained"
+        {/* Submit */}
+        <TouchableOpacity
+          style={[styles.submitBtn, disabled && styles.submitBtnDisabled]}
           onPress={handleTopUp}
-          loading={isLoading || isPaymentLoading}
-          disabled={isLoading || isPaymentLoading || !amount || parseFloat(amount) <= 0}
-          style={styles.submitButton}
+          disabled={disabled}
+          activeOpacity={0.85}
         >
-          Add {amount ? `${amount} TRY` : 'Money'}
-        </Button>
-      </View>
+          {loading ? (
+            <Icon name="loading" size={20} color="#fff" />
+          ) : (
+            <Text style={styles.submitBtnText}>
+              {amount ? `Add ${amount} TRY` : 'Add Money'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <Text style={styles.note}>Payments are processed securely via Stripe</Text>
+      </ScrollView>
 
       <Snackbar
         visible={!!error || !!localError}
-        onDismiss={() => {
-          dispatch(clearError());
-          setLocalError(null);
-        }}
+        onDismiss={() => { dispatch(clearError()); setLocalError(null); }}
         duration={3000}
       >
         {error || localError}
@@ -175,68 +176,76 @@ const AddBalanceScreen = ({ navigation }) => {
         duration={2000}
         style={styles.successSnackbar}
       >
-        Top-up successful!
+        ✓ Top-up successful!
       </Snackbar>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
+  root: { flex: 1, backgroundColor: '#F4F5FB' },
+
+  /* header */
   header: {
+    backgroundColor: PURPLE_DARK,
+    paddingTop: 52,
+    paddingBottom: 28,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingHorizontal: 10,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
-  title: {
-    fontWeight: 'bold',
+  blob1: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: '#4A0099', opacity: 0.45, top: -50, right: -40,
   },
-  balanceCard: {
-    margin: 20,
-    backgroundColor: '#6200EE',
+  blob2: {
+    position: 'absolute', width: 100, height: 100, borderRadius: 50,
+    backgroundColor: PURPLE_MAIN, opacity: 0.25, bottom: -30, left: 40,
   },
-  balanceAmount: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    marginTop: 4,
+  backBtn: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  content: {
-    padding: 20,
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+
+  /* body */
+  body: { padding: 24 },
+  sectionLabel: {
+    fontSize: 13, fontWeight: '700', color: '#888',
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 12, marginTop: 8,
   },
-  sectionTitle: {
-    marginBottom: 12,
+
+  /* quick amounts */
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 },
+  quickChip: {
+    paddingVertical: 10, paddingHorizontal: 20,
+    borderRadius: 14, borderWidth: 1.5, borderColor: '#DDD',
+    backgroundColor: '#fff',
   },
-  quickAmounts: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 10,
+  quickChipActive: { backgroundColor: PURPLE_MAIN, borderColor: PURPLE_MAIN },
+  quickChipText: { fontSize: 15, fontWeight: '600', color: '#555' },
+  quickChipTextActive: { color: '#fff' },
+
+  /* input */
+  input: { backgroundColor: '#fff', marginBottom: 28 },
+
+  /* submit */
+  submitBtn: {
+    backgroundColor: PURPLE_MAIN, borderRadius: 18,
+    paddingVertical: 16, alignItems: 'center',
+    elevation: 4, shadowColor: PURPLE_MAIN,
+    shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
   },
-  quickButton: {
-    width: '22%',
-    marginHorizontal: '1.5%',
-    marginVertical: 5,
-  },
-  input: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-  },
-  submitButton: {
-    paddingVertical: 6,
-  },
-  note: {
-    textAlign: 'center',
-    color: '#999',
-    marginTop: 16,
-  },
-  successSnackbar: {
-    backgroundColor: '#4CAF50',
-  },
+  submitBtnDisabled: { backgroundColor: '#C5B4E3', elevation: 0, shadowOpacity: 0 },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  note: { textAlign: 'center', color: '#ABABAB', fontSize: 12, marginTop: 16 },
+  successSnackbar: { backgroundColor: '#26A69A' },
 });
 
 export default AddBalanceScreen;

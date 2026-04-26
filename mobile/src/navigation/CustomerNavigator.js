@@ -33,17 +33,29 @@ const CustomerNavigator = () => {
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'History') {
-            iconName = focused ? 'history' : 'history';
+            iconName = focused ? 'format-list-bulleted' : 'format-list-bulleted-square';
           } else if (route.name === 'Stats') {
-            iconName = focused ? 'chart-pie' : 'chart-pie';
+            iconName = focused ? 'chart-areaspline' : 'chart-areaspline';
           } else if (route.name === 'Profile') {
-            iconName = focused ? 'account' : 'account-outline';
+            iconName = focused ? 'account-circle' : 'account-circle-outline';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#6200EE',
-        tabBarInactiveTintColor: 'gray',
+        tabBarInactiveTintColor: '#ABABAB',
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopWidth: 0,
+          elevation: 12,
+          shadowColor: '#1A006B',
+          shadowOpacity: 0.1,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 },
+          height: 62,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerShown: false,
       })}
     >

@@ -116,7 +116,11 @@ async function runSeeder() {
                 transaction_type: type,
                 status: faker.helpers.arrayElement(['PENDING', 'COMPLETED', 'FAILED']),
                 reference_code: faker.string.alphanumeric(16).toUpperCase(),
-                description: faker.lorem.sentence(),
+                description: type === 'TOPUP'
+                    ? faker.helpers.arrayElement(['Wallet Top-up', 'Account Funding', 'Deposit via Credit Card'])
+                    : type === 'WITHDRAWAL'
+                        ? faker.helpers.arrayElement(['Bank Withdrawal', 'ATM Cash Out', 'Transfer to Bank'])
+                        : `Payment for ${category || 'Services'}`,
                 category,
                 createdAt: faker.date.recent({ days: 30 }),
                 updatedAt: new Date()
