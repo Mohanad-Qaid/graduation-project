@@ -1,9 +1,41 @@
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { Card, Text, Button, Surface, Snackbar } from 'react-native-paper';
+import {
+  View, StyleSheet, ScrollView, RefreshControl,
+  TouchableOpacity, StatusBar,
+} from 'react-native';
+import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchMerchantDashboard, clearError } from '../../store/slices/walletSlice';
+
+const PURPLE_DARK = '#1A006B';
+const PURPLE_MID = '#4A0099';
+const PURPLE_MAIN = '#6200EE';
+
+const getInitials = (name = '') =>
+  name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+/* ─── Quick Action Button ── */
+const QuickAction = ({ icon, label, color, bg, onPress }) => (
+  <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8}>
+    <View style={[styles.actionIcon, { backgroundColor: bg }]}>
+      <Icon name={icon} size={22} color={color} />
+    </View>
+    <Text style={styles.actionLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
+/* ─── Stat Card ── */
+const StatCard = ({ label, amount, count, iconName, iconColor, iconBg }) => (
+  <View style={styles.statCard}>
+    <View style={[styles.statIconWrap, { backgroundColor: iconBg }]}>
+      <Icon name={iconName} size={18} color={iconColor} />
+    </View>
+    <Text style={styles.statLabel}>{label}</Text>
+    <Text style={styles.statAmount}>{amount}</Text>
+    <Text style={styles.statCount}>{count} txns</Text>
+  </View>
+);
 
 const MerchantDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -14,157 +46,148 @@ const MerchantDashboard = ({ navigation }) => {
   const [snackMessage, setSnackMessage] = useState('');
 
   useEffect(() => {
-    if (error) {
-      setSnackMessage(error);
-      setSnackVisible(true);
-    }
+    if (error) { setSnackMessage(error); setSnackVisible(true); }
   }, [error]);
 
-  const loadData = useCallback(() => {
-    dispatch(fetchMerchantDashboard());
-  }, [dispatch]);
+  const loadData = useCallback(() => { dispatch(fetchMerchantDashboard()); }, [dispatch]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const handleDismissSnack = () => { setSnackVisible(false); dispatch(clearError()); };
 
-  const handleDismissSnack = () => {
-    setSnackVisible(false);
-    dispatch(clearError());
-  };
-
-  const formatCurrency = (amount) => `${currency || 'TRY'} ${Number(amount || 0).toFixed(2)}`;
+  const fmt = (amount) => `${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'TRY'}`;
 
   const displayName = user?.business_name
     || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
     || 'Merchant';
 
   return (
-    <View style={styles.wrapper}>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
       <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={loadData} />
-        }
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadData} tintColor="#fff" />}
       >
-        <View style={styles.header}>
-          <Text variant="titleMedium" style={styles.greeting}>{displayName}</Text>
-          <Text variant="bodySmall" style={styles.subGreeting}>Merchant Dashboard</Text>
-        </View>
+        {/* ── Hero ── */}
+        <View style={styles.hero}>
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
 
-        <Card style={styles.balanceCard}>
-          <Card.Content>
-            <Text variant="labelMedium" style={styles.balanceLabel}>Available Balance</Text>
-            <Text variant="displaySmall" style={styles.balanceAmount}>
-              {formatCurrency(balance)}
-            </Text>
-            <View style={styles.balanceRow}>
-              <Text variant="bodySmall" style={styles.pendingLabel}>Pending Withdrawal:</Text>
-              <Text variant="bodySmall" style={styles.pendingAmount}>
-                {formatCurrency(merchantStats?.pendingWithdrawal)}
+          {/* top bar */}
+          <View style={styles.heroTop}>
+            <View>
+              <Text style={styles.greetSmall}>Hello,</Text>
+              <Text style={styles.greetName} numberOfLines={1}>{displayName}</Text>
+            </View>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+            </View>
+          </View>
+
+          {/* balance */}
+          <View style={styles.balanceWrap}>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceAmount}>{fmt(balance)}</Text>
+            <View style={styles.pendingRow}>
+              <Icon name="clock-outline" size={13} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.pendingText}>
+                {' '}Pending Withdrawal: {fmt(merchantStats?.pendingWithdrawal)}
               </Text>
             </View>
-          </Card.Content>
-        </Card>
-
-        <View style={styles.statsRow}>
-          <Card style={[styles.statCard, styles.todayCard]}>
-            <Card.Content>
-              <Text variant="labelSmall" style={styles.statLabel}>Today's Revenue</Text>
-              <Text variant="titleLarge" style={styles.statValue}>
-                {formatCurrency(merchantStats?.todayRevenue?.total)}
-              </Text>
-              <Text variant="bodySmall" style={styles.statCount}>
-                {merchantStats?.todayRevenue?.count || 0} transactions
-              </Text>
-            </Card.Content>
-          </Card>
-
-          <Card style={[styles.statCard, styles.weekCard]}>
-            <Card.Content>
-              <Text variant="labelSmall" style={styles.statLabel}>This Week</Text>
-              <Text variant="titleLarge" style={styles.statValue}>
-                {formatCurrency(merchantStats?.weekRevenue?.total)}
-              </Text>
-              <Text variant="bodySmall" style={styles.statCount}>
-                {merchantStats?.weekRevenue?.count || 0} transactions
-              </Text>
-            </Card.Content>
-          </Card>
+          </View>
         </View>
 
-        <View style={styles.actionsContainer}>
-          <Surface style={styles.actionButton} elevation={2}>
-            <Button
+        {/* ── Quick Actions ── */}
+        <View style={styles.actionsCard}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsRow}>
+            <QuickAction
               icon="qrcode"
-              mode="text"
+              label="My QR Code"
+              color={PURPLE_MAIN}
+              bg="#EDE7F6"
               onPress={() => navigation.navigate('GenerateQR')}
-              style={styles.actionButtonInner}
-              labelStyle={styles.actionLabel}
-            >
-              My QR Code
-            </Button>
-          </Surface>
-
-          <Surface style={styles.actionButton} elevation={2}>
-            <Button
-              icon="cash"
-              mode="text"
+            />
+            <QuickAction
+              icon="cash-multiple"
+              label="Withdraw"
+              color="#2E7D32"
+              bg="#E8F5E9"
               onPress={() => navigation.navigate('RequestWithdrawal')}
-              style={styles.actionButtonInner}
-              labelStyle={styles.actionLabel}
-            >
-              Withdraw
-            </Button>
-          </Surface>
+            />
+            <QuickAction
+              icon="format-list-bulleted"
+              label="History"
+              color="#1565C0"
+              bg="#E3F2FD"
+              onPress={() => navigation.navigate('History')}
+            />
+            <QuickAction
+              icon="bank-transfer-out"
+              label="Withdrawals"
+              color="#E65100"
+              bg="#FFF3E0"
+              onPress={() => navigation.navigate('WithdrawalHistory')}
+            />
+          </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text variant="titleMedium">Recent Payments</Text>
-            <Button mode="text" onPress={() => navigation.navigate('History')}>See All</Button>
+        {/* ── Stats ── */}
+        <View style={styles.statsCard}>
+          <Text style={styles.sectionTitle}>Revenue Overview</Text>
+          <View style={styles.statsRow}>
+            <StatCard
+              label="Today"
+              amount={fmt(merchantStats?.todayRevenue?.total)}
+              count={merchantStats?.todayRevenue?.count || 0}
+              iconName="weather-sunny"
+              iconColor="#F57F17"
+              iconBg="#FFFDE7"
+            />
+            <View style={styles.statDivider} />
+            <StatCard
+              label="This Week"
+              amount={fmt(merchantStats?.weekRevenue?.total)}
+              count={merchantStats?.weekRevenue?.count || 0}
+              iconName="calendar-week"
+              iconColor={PURPLE_MAIN}
+              iconBg="#EDE7F6"
+            />
+          </View>
+        </View>
+
+        {/* ── Recent Payments ── */}
+        <View style={styles.txSection}>
+          <View style={styles.txHeader}>
+            <Text style={styles.sectionTitle}>Recent Payments</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('History')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
           </View>
 
           {!merchantStats?.recentTransactions?.length ? (
-            <Card style={styles.emptyCard}>
-              <Card.Content>
-                <Text style={styles.emptyText}>No payments received yet</Text>
-              </Card.Content>
-            </Card>
+            <View style={styles.emptyWrap}>
+              <Icon name="inbox-outline" size={44} color="#CCC" />
+              <Text style={styles.emptyText}>No payments received yet</Text>
+            </View>
           ) : (
             merchantStats.recentTransactions.map((tx) => (
-              <Card key={tx.id} style={styles.transactionCard}>
-                <Card.Content style={styles.transactionContent}>
-                  <View style={styles.transactionLeft}>
-                    <View style={styles.iconContainer}>
-                      <Icon name="arrow-down" size={20} color="#4CAF50" />
-                    </View>
-                    <View>
-                      <Text variant="bodyMedium" style={styles.transactionTitle}>
-                        {tx.customerName}
-                      </Text>
-                      <Text variant="bodySmall" style={styles.transactionDate}>
-                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text variant="bodyLarge" style={styles.transactionAmount}>
-                    +{formatCurrency(tx.amount)}
+              <View key={tx.id} style={styles.txRow}>
+                <View style={styles.txIconWrap}>
+                  <Icon name="arrow-bottom-left" size={18} color="#2E7D32" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.txName}>{tx.customerName}</Text>
+                  <Text style={styles.txTime}>
+                    {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
-                </Card.Content>
-              </Card>
+                </View>
+                <Text style={styles.txAmount}>+{fmt(tx.amount)}</Text>
+              </View>
             ))
           )}
         </View>
 
-        <Button
-          mode="outlined"
-          onPress={() => navigation.navigate('WithdrawalHistory')}
-          style={styles.historyButton}
-          icon="history"
-        >
-          Withdrawal History
-        </Button>
+        <View style={{ height: 24 }} />
       </ScrollView>
 
       <Snackbar
@@ -180,40 +203,95 @@ const MerchantDashboard = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: { padding: 20, paddingTop: 50 },
-  greeting: { color: '#333', fontWeight: 'bold' },
-  subGreeting: { color: '#666', marginTop: 2 },
-  balanceCard: { marginHorizontal: 20, backgroundColor: '#6200EE', borderRadius: 16 },
-  balanceLabel: { color: 'rgba(255,255,255,0.8)' },
-  balanceAmount: { color: '#FFFFFF', fontWeight: 'bold', marginTop: 8 },
-  balanceRow: { flexDirection: 'row', marginTop: 12 },
-  pendingLabel: { color: 'rgba(255,255,255,0.7)' },
-  pendingAmount: { color: '#FFFFFF', marginLeft: 4 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 16 },
-  statCard: { flex: 1, marginHorizontal: 4 },
-  todayCard: { backgroundColor: '#E8F5E9' },
-  weekCard: { backgroundColor: '#E3F2FD' },
-  statLabel: { color: '#666' },
-  statValue: { fontWeight: 'bold', marginTop: 4 },
-  statCount: { color: '#999', marginTop: 2 },
-  actionsContainer: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20, marginTop: 20 },
-  actionButton: { flex: 1, marginHorizontal: 8, borderRadius: 12, backgroundColor: '#FFFFFF' },
-  actionButtonInner: { paddingVertical: 8 },
-  actionLabel: { fontSize: 12 },
-  section: { padding: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  emptyCard: { backgroundColor: '#FFFFFF' },
-  emptyText: { textAlign: 'center', color: '#999' },
-  transactionCard: { marginBottom: 10, backgroundColor: '#FFFFFF' },
-  transactionContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  transactionLeft: { flexDirection: 'row', alignItems: 'center' },
-  iconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  transactionTitle: { fontWeight: '500' },
-  transactionDate: { color: '#999' },
-  transactionAmount: { fontWeight: 'bold', color: '#4CAF50' },
-  historyButton: { marginHorizontal: 20, marginBottom: 30 },
+  root: { flex: 1, backgroundColor: '#F4F5FB' },
+
+  /* hero */
+  hero: {
+    backgroundColor: PURPLE_DARK,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
+    overflow: 'hidden',
+  },
+  blob1: {
+    position: 'absolute', width: 220, height: 220, borderRadius: 110,
+    backgroundColor: PURPLE_MID, opacity: 0.4, top: -70, right: -60,
+  },
+  blob2: {
+    position: 'absolute', width: 130, height: 130, borderRadius: 65,
+    backgroundColor: PURPLE_MAIN, opacity: 0.25, bottom: -30, left: 30,
+  },
+  heroTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 52, paddingHorizontal: 22, marginBottom: 20,
+  },
+  greetSmall: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  greetName: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2, maxWidth: '80%' },
+  avatarCircle: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
+  },
+  avatarText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  balanceWrap: { paddingHorizontal: 22 },
+  balanceLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 6 },
+  balanceAmount: { color: '#fff', fontSize: 34, fontWeight: '800' },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  pendingText: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+
+  /* cards */
+  actionsCard: {
+    backgroundColor: '#fff', borderRadius: 22,
+    marginHorizontal: 20, marginTop: 16, padding: 18,
+    elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A2E', marginBottom: 14 },
+  actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  actionBtn: { alignItems: 'center', flex: 1 },
+  actionIcon: {
+    width: 52, height: 52, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 6,
+  },
+  actionLabel: { fontSize: 11, color: '#555', fontWeight: '600', textAlign: 'center' },
+
+  /* stats */
+  statsCard: {
+    backgroundColor: '#fff', borderRadius: 22,
+    marginHorizontal: 20, marginTop: 14, padding: 18,
+    elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  statsRow: { flexDirection: 'row', alignItems: 'center' },
+  statCard: { flex: 1, alignItems: 'center' },
+  statDivider: { width: 1, height: 70, backgroundColor: '#F0F0F0', marginHorizontal: 8 },
+  statIconWrap: {
+    width: 36, height: 36, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 6,
+  },
+  statLabel: { fontSize: 12, color: '#ABABAB', fontWeight: '600', marginBottom: 4 },
+  statAmount: { fontSize: 16, fontWeight: '800', color: '#1A1A2E' },
+  statCount: { fontSize: 11, color: '#ABABAB', marginTop: 2 },
+
+  /* recent transactions */
+  txSection: {
+    backgroundColor: '#fff', borderRadius: 22,
+    marginHorizontal: 20, marginTop: 14, padding: 18,
+    elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  txHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  seeAll: { color: PURPLE_MAIN, fontWeight: '600', fontSize: 13 },
+  txRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
+  },
+  txIconWrap: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginRight: 12,
+  },
+  txName: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
+  txTime: { fontSize: 12, color: '#ABABAB', marginTop: 2 },
+  txAmount: { fontSize: 15, fontWeight: '700', color: '#2E7D32' },
+  emptyWrap: { alignItems: 'center', paddingVertical: 28 },
+  emptyText: { color: '#ABABAB', marginTop: 10, fontSize: 14 },
 });
 
 export default MerchantDashboard;

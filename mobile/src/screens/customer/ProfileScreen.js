@@ -81,7 +81,7 @@ const ProfileScreen = () => {
               {getInitials(user?.first_name, user?.last_name)}
             </Text>
           </View>
-          <Text style={styles.heroName}>{fullName || 'Your Name'}</Text>
+          <Text style={styles.heroName} numberOfLines={1}>{fullName || 'Your Name'}</Text>
         </View>
 
         {/* ── Single unified card ── */}
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: 'rgba(255,255,255,0.35)', marginBottom: 12,
   },
   avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
-  heroName: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  heroName: { color: '#fff', fontSize: 20, fontWeight: '700', maxWidth: '80%' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 22,

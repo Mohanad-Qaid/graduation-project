@@ -134,8 +134,8 @@ const DashboardScreen = ({ navigation }) => {
           {/* top bar */}
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.greetSmall}>Good day,</Text>
-              <Text style={styles.greetName}>{firstName} 👋</Text>
+              <Text style={styles.greetSmall}>Hello</Text>
+              <Text style={styles.greetName} numberOfLines={1}>{firstName}</Text>
             </View>
             <TouchableOpacity
               style={styles.avatarBtn}
@@ -295,6 +295,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginTop: 2,
+    maxWidth: '75%',
   },
   avatarBtn: {
     width: 44,

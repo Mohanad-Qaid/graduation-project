@@ -1,256 +1,235 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { TextInput, Button, Text, Card, Snackbar } from 'react-native-paper';
-import { useDispatch, useSelector } from 'react-redux';
 import {
-  requestWithdrawal,
-  clearWithdrawalSuccess,
-  clearError,
-} from '../../store/slices/transactionSlice';
+    View, StyleSheet, ScrollView,
+    TouchableOpacity, StatusBar, KeyboardAvoidingView, Platform
+} from 'react-native';
+import { Text, Snackbar, TextInput, ActivityIndicator } from 'react-native-paper';
+import { useDispatch, useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { requestWithdrawal, clearError, clearWithdrawalSuccess } from '../../store/slices/transactionSlice';
+
+const PURPLE_DARK = '#1A006B';
+const PURPLE_MAIN = '#6200EE';
 
 const RequestWithdrawalScreen = ({ navigation }) => {
-  const dispatch = useDispatch();
-  const { isLoading, error, withdrawalSuccess } = useSelector(
-    (state) => state.transactions
-  );
-  const { balance, currency } = useSelector((state) => state.wallet);
+    const dispatch = useDispatch();
+    const { isLoading, error, withdrawalSuccess } = useSelector((state) => state.transactions);
+    const { balance, currency } = useSelector((state) => state.wallet);
 
-  const [amount, setAmount] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [bankAccount, setBankAccount] = useState('');
+    const [amount, setAmount] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [bankAccount, setBankAccount] = useState('');
 
-  useEffect(() => {
-    if (withdrawalSuccess) {
-      Alert.alert(
-        'Request Submitted',
-        'Your withdrawal request has been submitted and is pending admin approval.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              dispatch(clearWithdrawalSuccess());
-              navigation.goBack();
-            },
-          },
-        ]
-      );
-    }
-  }, [withdrawalSuccess, dispatch, navigation]);
+    const [snackVisible, setSnackVisible] = useState(false);
+    const [snackMessage, setSnackMessage] = useState('');
 
-  useEffect(() => {
-    return () => {
-      dispatch(clearError());
-      dispatch(clearWithdrawalSuccess());
+    useEffect(() => {
+        if (error) {
+            setSnackMessage(error);
+            setSnackVisible(true);
+            dispatch(clearError());
+        }
+        if (withdrawalSuccess) {
+            setSnackMessage('Withdrawal request submitted successfully');
+            setSnackVisible(true);
+            setAmount('');
+            setBankName('');
+            setBankAccount('');
+            dispatch(clearWithdrawalSuccess());
+            // Navigate to withdrawal history after short delay
+            setTimeout(() => {
+                navigation.navigate('WithdrawalHistory');
+            }, 1500);
+        }
+    }, [error, withdrawalSuccess, dispatch, navigation]);
+
+    const handleSubmit = () => {
+        if (!amount || !bankName || !bankAccount) {
+            setSnackMessage('Please fill all fields');
+            setSnackVisible(true);
+            return;
+        }
+
+        if (parseFloat(amount) <= 0) {
+            setSnackMessage('Amount must be greater than zero');
+            setSnackVisible(true);
+            return;
+        }
+
+        if (parseFloat(amount) > balance) {
+            setSnackMessage('Insufficient balance');
+            setSnackVisible(true);
+            return;
+        }
+
+        dispatch(requestWithdrawal({ amount: parseFloat(amount), bankName, bankAccount }));
     };
-  }, [dispatch]);
 
-  const handleSubmit = () => {
-    const numAmount = parseFloat(amount);
+    return (
+        <KeyboardAvoidingView
+            style={styles.root}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+            <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
 
-    if (isNaN(numAmount) || numAmount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
-      return;
-    }
-
-    if (numAmount > balance) {
-      Alert.alert('Error', 'Amount exceeds available balance');
-      return;
-    }
-
-    if (!bankName.trim()) {
-      Alert.alert('Error', 'Please enter bank name');
-      return;
-    }
-
-    if (!bankAccount.trim()) {
-      Alert.alert('Error', 'Please enter bank account number');
-      return;
-    }
-
-    dispatch(
-      requestWithdrawal({
-        amount: numAmount,
-        bankName: bankName.trim(),
-        bankAccount: bankAccount.trim(),
-      })
-    );
-  };
-
-  const setMaxAmount = () => {
-    setAmount(balance.toString());
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.header}>
-        <Button icon="arrow-left" onPress={() => navigation.goBack()}>
-          Back
-        </Button>
-        <Text variant="titleLarge" style={styles.title}>
-          Request Withdrawal
-        </Text>
-        <View style={{ width: 80 }} />
-      </View>
-
-      <View style={styles.content}>
-        <Card style={styles.balanceCard}>
-          <Card.Content>
-            <Text variant="labelMedium">Available Balance</Text>
-            <Text variant="headlineMedium" style={styles.balanceAmount}>
-              {currency || 'USD'} {Number(balance || 0).toFixed(2)}
-            </Text>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.formCard}>
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.formTitle}>
-              Withdrawal Details
-            </Text>
-
-            <View style={styles.amountRow}>
-              <TextInput
-                label="Amount"
-                value={amount}
-                onChangeText={setAmount}
-                mode="outlined"
-                keyboardType="decimal-pad"
-                left={<TextInput.Affix text="$" />}
-                style={[styles.input, styles.amountInput]}
-              />
-              <Button mode="outlined" onPress={setMaxAmount} style={styles.maxButton}>
-                Max
-              </Button>
+            {/* ── Header ── */}
+            <View style={styles.header}>
+                <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                    <Icon name="arrow-left" size={24} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Request Withdrawal</Text>
             </View>
 
-            <TextInput
-              label="Bank Name"
-              value={bankName}
-              onChangeText={setBankName}
-              mode="outlined"
-              placeholder="e.g., Chase, Bank of America"
-              style={styles.input}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-            <TextInput
-              label="Bank Account Number"
-              value={bankAccount}
-              onChangeText={setBankAccount}
-              mode="outlined"
-              keyboardType="number-pad"
-              style={styles.input}
-            />
+                {/* Balance Card */}
+                <View style={styles.balanceCard}>
+                    <Text style={styles.balanceLabel}>Available Balance</Text>
+                    <Text style={styles.balanceAmount}>
+                        {Number(balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency || 'TRY'}
+                    </Text>
+                </View>
 
-            <Button
-              mode="contained"
-              onPress={handleSubmit}
-              loading={isLoading}
-              disabled={
-                isLoading ||
-                !amount ||
-                parseFloat(amount) <= 0 ||
-                !bankName ||
-                !bankAccount
-              }
-              style={styles.submitButton}
+                {/* Input Form */}
+                <View style={styles.formCard}>
+                    <Text style={styles.sectionTitle}>Withdrawal Details</Text>
+
+                    <TextInput
+                        label="Amount"
+                        value={amount}
+                        onChangeText={setAmount}
+                        keyboardType="numeric"
+                        style={styles.input}
+                        mode="outlined"
+                        outlineColor="#E0E0E0"
+                        activeOutlineColor={PURPLE_MAIN}
+                        left={<TextInput.Icon icon="cash" color={PURPLE_MAIN} />}
+                    />
+
+                    <TextInput
+                        label="Bank Name"
+                        value={bankName}
+                        onChangeText={setBankName}
+                        style={styles.input}
+                        mode="outlined"
+                        outlineColor="#E0E0E0"
+                        activeOutlineColor={PURPLE_MAIN}
+                        left={<TextInput.Icon icon="bank" color={PURPLE_MAIN} />}
+                        placeholder="e.g. Ziraat Bankası"
+                    />
+
+                    <TextInput
+                        label="IBAN / Account Number"
+                        value={bankAccount}
+                        onChangeText={setBankAccount}
+                        style={styles.input}
+                        mode="outlined"
+                        outlineColor="#E0E0E0"
+                        activeOutlineColor={PURPLE_MAIN}
+                        left={<TextInput.Icon icon="card-account-details-outline" color={PURPLE_MAIN} />}
+                        keyboardType="default"
+                    />
+
+                    <TouchableOpacity
+                        style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                        onPress={handleSubmit}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <>
+                                <Text style={styles.submitButtonText}>Submit Request</Text>
+                                <Icon name="arrow-right" size={20} color="#fff" />
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.infoBox}>
+                    <Icon name="information-outline" size={20} color="#1565C0" style={styles.infoIcon} />
+                    <Text style={styles.infoText}>
+                        Withdrawals typically take 1-3 business days to be processed and deposited into your account.
+                    </Text>
+                </View>
+
+            </ScrollView>
+
+            <Snackbar
+                visible={snackVisible}
+                onDismiss={() => setSnackVisible(false)}
+                duration={3000}
+                action={{ label: 'Dismiss', onPress: () => setSnackVisible(false) }}
             >
-              Submit Request
-            </Button>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.infoCard}>
-          <Card.Content>
-            <Text variant="titleSmall">Important:</Text>
-            <Text variant="bodySmall" style={styles.infoText}>
-              - Withdrawal requests require admin approval
-            </Text>
-            <Text variant="bodySmall" style={styles.infoText}>
-              - Processing may take 1-3 business days
-            </Text>
-            <Text variant="bodySmall" style={styles.infoText}>
-              - You can only have one pending request at a time
-            </Text>
-          </Card.Content>
-        </Card>
-      </View>
-
-      <Snackbar
-        visible={!!error}
-        onDismiss={() => dispatch(clearError())}
-        duration={3000}
-      >
-        {error}
-      </Snackbar>
-    </KeyboardAvoidingView>
-  );
+                {snackMessage}
+            </Snackbar>
+        </KeyboardAvoidingView>
+    );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingHorizontal: 10,
-  },
-  title: {
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  balanceCard: {
-    marginBottom: 16,
-    backgroundColor: '#6200EE',
-  },
-  balanceAmount: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
-  },
-  formTitle: {
-    marginBottom: 16,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  input: {
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  amountInput: {
-    flex: 1,
-    marginBottom: 0,
-    marginRight: 8,
-  },
-  maxButton: {
-    marginTop: 6,
-  },
-  submitButton: {
-    paddingVertical: 6,
-  },
-  infoCard: {
-    backgroundColor: '#FFF3E0',
-  },
-  infoText: {
-    marginTop: 4,
-    color: '#666',
-  },
+    root: { flex: 1, backgroundColor: '#F4F5FB' },
+    header: {
+        backgroundColor: PURPLE_DARK,
+        paddingTop: 50,
+        paddingHorizontal: 20,
+        paddingBottom: 25,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+    },
+    backButton: { marginRight: 15 },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+    scrollContent: { padding: 20, paddingTop: 10 },
+    balanceCard: {
+        backgroundColor: PURPLE_MAIN,
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
+        marginTop: 10,
+        elevation: 4, shadowColor: PURPLE_MAIN, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    },
+    balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 5 },
+    balanceAmount: { color: '#fff', fontSize: 28, fontWeight: '800' },
+    formCard: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 20,
+        elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    },
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 15 },
+    input: {
+        backgroundColor: '#fff',
+        marginBottom: 15,
+    },
+    submitButton: {
+        backgroundColor: PURPLE_MAIN,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        marginTop: 8,
+    },
+    submitButtonDisabled: {
+        backgroundColor: '#B39DDB',
+    },
+    submitButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+        marginRight: 8,
+    },
+    infoBox: {
+        flexDirection: 'row',
+        backgroundColor: '#E3F2FD',
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 20,
+    },
+    infoIcon: { marginTop: 2, marginRight: 10 },
+    infoText: { flex: 1, color: '#1565C0', fontSize: 13, lineHeight: 18 },
 });
 
 export default RequestWithdrawalScreen;
