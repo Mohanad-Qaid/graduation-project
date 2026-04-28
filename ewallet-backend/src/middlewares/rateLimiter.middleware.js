@@ -43,10 +43,13 @@ const globalRateLimiter = createRateLimiter({
     message: 'Too many requests from this IP. Try again later.',
 });
 
-/** Stricter limiter for auth endpoints */
+/** Stricter limiter for auth endpoints.
+ *  Max is set to 20 to accommodate soft-lock PIN re-verification calls
+ *  (POST /auth/login is now also called on every app foreground event).
+ */
 const authRateLimiter = createRateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10,
+    max: 20,
     prefix: 'rl:auth',
     message: 'Too many auth attempts. Please wait 15 minutes.',
 });

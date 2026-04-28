@@ -1,92 +1,144 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, Text, Card, Snackbar } from 'react-native-paper';
+import {
+  View,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+} from 'react-native';
+import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { login, clearError } from '../../store/slices/authSlice';
-import { getUserProfile } from '../../services/offlineDb';
+import {
+  login,
+  pinLogin,
+  logout,
+  wipeDevice,
+  clearError,
+} from '../../store/slices/authSlice';
 
-// Message the backend sends for PENDING accounts
+// ─── Design tokens (mirrors DashboardScreen) ─────────────────────────────────
+const PURPLE_DARK = '#1A006B';
+const PURPLE_MID  = '#4A0099';
+const PURPLE_MAIN = '#6200EE';
+
 const PENDING_PHRASE = 'under review';
 
-/** Build two-letter initials from first + last name */
 function getInitials(firstName, lastName) {
   const a = (firstName || '').trim()[0] || '';
   const b = (lastName || '').trim()[0] || '';
   return (a + b).toUpperCase();
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const {
+    isLoading,
+    error,
+    failCount,
+    cachedEmail,
+    cachedFirstName,
+    cachedLastName,
+  } = useSelector((state) => state.auth);
 
   const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
-  const [cachedProfile, setCachedProfile] = useState(null);
+  const [pin, setPin]     = useState('');
 
-  // Load cached profile from SQLite on mount — works fully offline
+  // Wipe device after 3 wrong PIN attempts
   useEffect(() => {
-    getUserProfile().then((profile) => {
-      if (profile) setCachedProfile(profile);
-    });
-  }, []);
+    if (failCount >= 3) dispatch(wipeDevice());
+  }, [failCount, dispatch]);
 
+  // Reset fields when switching between views
   useEffect(() => {
-    return () => {
-      dispatch(clearError());
-    };
+    setPin('');
+    setEmail('');
+    dispatch(clearError());
+  }, [cachedEmail, dispatch]);
+
+  // Clear error on unmount
+  useEffect(() => {
+    return () => { dispatch(clearError()); };
   }, [dispatch]);
 
-  const handleLogin = () => {
-    if (!email || pin.length !== 6) return;
+  const handleSubmit = () => {
+    if (pin.length !== 6) return;
     dispatch(clearError());
-    dispatch(login({ email: email.trim(), password: pin }));
+    if (cachedEmail) {
+      dispatch(pinLogin({ pin }));
+    } else {
+      dispatch(login({ email: email.trim(), password: pin }));
+    }
   };
 
-  // Split the error: show the amber banner for pending, Snackbar for everything else
-  const isPending = error?.toLowerCase().includes(PENDING_PHRASE);
+  const isExperienced = !!cachedEmail;
+  const initials      = getInitials(cachedFirstName, cachedLastName);
+  const fullName      = [cachedFirstName, cachedLastName].filter(Boolean).join(' ');
+  const isPending     = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
   const snackbarError = error && !isPending ? error : null;
-
-  const initials = getInitials(cachedProfile?.first_name, cachedProfile?.last_name);
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
 
-        {/* ── Letter avatar + greeting (shown when a previous session exists) ── */}
-        {cachedProfile ? (
-          <View style={styles.avatarSection}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{initials}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Hero header ─────────────────────────────────────────────────── */}
+        <View style={styles.hero}>
+          {/* Decorative blobs — same as Dashboard */}
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
+          <View style={styles.blob3} />
+
+          {isExperienced ? (
+            /* Returning user — avatar + name */
+            <View style={styles.heroContent}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{initials || '?'}</Text>
+              </View>
+              <Text style={styles.heroSmall}>Welcome back,</Text>
+              <Text style={styles.heroName}>{fullName || 'User'}</Text>
             </View>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.greetingName}>{cachedProfile.first_name} 👋</Text>
-          </View>
-        ) : (
-          <View style={styles.header}>
-            <Text variant="displaySmall" style={styles.title}>E-Wallet</Text>
-            <Text variant="bodyLarge" style={styles.subtitle}>Sign in to your account</Text>
-          </View>
-        )}
-
-        {/* ── Pending account banner ───────────────────────────── */}
-        {isPending && (
-          <View style={styles.pendingBanner}>
-            <Icon name="clock-outline" size={22} color="#7c4d00" style={styles.pendingIcon} />
-            <View style={styles.pendingTextContainer}>
-              <Text style={styles.pendingTitle}>Account Under Review</Text>
-              <Text style={styles.pendingBody}>
-                Your account is awaiting for approval. You'll be able to sign in once it's approved.
-              </Text>
+          ) : (
+            /* New user — app brand */
+            <View style={styles.heroContent}>
+              <View style={styles.brandIcon}>
+                <Icon name="wallet-outline" size={36} color="#fff" />
+              </View>
+              <Text style={styles.heroSmall}>Welcome to</Text>
+              <Text style={styles.heroName}>E-Wallet</Text>
+              <Text style={styles.heroSub}>Sign in to your account</Text>
             </View>
-          </View>
-        )}
+          )}
+        </View>
 
-        <Card style={styles.card}>
-          <Card.Content>
+        {/* ── Floating form panel ─────────────────────────────────────────── */}
+        <View style={styles.panel}>
+
+          {/* Pending banner */}
+          {isPending && (
+            <View style={styles.pendingBanner}>
+              <Icon name="clock-outline" size={18} color="#7c4d00" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingTitle}>Account Under Review</Text>
+                <Text style={styles.pendingBody}>
+                  Your account is awaiting approval. You'll be notified once it's approved.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Email — hidden for returning users */}
+          {!isExperienced && (
             <TextInput
               label="Email"
               value={email}
@@ -95,43 +147,66 @@ const LoginScreen = ({ navigation }) => {
               keyboardType="email-address"
               autoCapitalize="none"
               style={styles.input}
-              left={<TextInput.Icon icon="email" />}
+              activeOutlineColor={PURPLE_MAIN}
+              outlineColor="#DDD"
+              left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
             />
+          )}
 
-            <TextInput
-              label="6-Digit PIN"
-              value={pin}
-              onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 6))}
-              mode="outlined"
-              keyboardType="numeric"
-              secureTextEntry
-              maxLength={6}
-              style={styles.input}
-              left={<TextInput.Icon icon="lock" />}
-            />
+          {/* PIN — always shown */}
+          <TextInput
+            label="6-Digit PIN"
+            value={pin}
+            onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 6))}
+            mode="outlined"
+            keyboardType="numeric"
+            secureTextEntry
+            maxLength={6}
+            style={styles.input}
+            activeOutlineColor={PURPLE_MAIN}
+            outlineColor="#DDD"
+            left={<TextInput.Icon icon="lock-outline" color={PURPLE_MAIN} />}
+          />
 
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              loading={isLoading}
-              disabled={isLoading || !email || pin.length !== 6}
-              style={styles.button}
-            >
-              Sign In
-            </Button>
+          {/* Submit */}
+          <TouchableOpacity
+            style={[
+              styles.submitBtn,
+              (isLoading || pin.length !== 6 || (!isExperienced && !email)) && styles.submitDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={isLoading || pin.length !== 6 || (!isExperienced && !email)}
+            activeOpacity={0.85}
+          >
+            {isLoading ? (
+              <Text style={styles.submitText}>Verifying…</Text>
+            ) : (
+              <Text style={styles.submitText}>{isExperienced ? 'Unlock' : 'Sign In'}</Text>
+            )}
+          </TouchableOpacity>
 
-            <Button
-              mode="text"
+          {/* Register link */}
+          {!isExperienced && (
+            <TouchableOpacity
+              style={styles.linkBtn}
               onPress={() => navigation.navigate('Register')}
-              style={styles.linkButton}
             >
-              Don't have an account? Register
-            </Button>
-          </Card.Content>
-        </Card>
+              <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkAccent}>Register</Text></Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Switch account */}
+          {isExperienced && (
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => dispatch(logout())}
+            >
+              <Text style={styles.linkText}>Sign in with a <Text style={styles.linkAccent}>different account</Text></Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </ScrollView>
 
-      {/* ── Generic error Snackbar (wrong credentials, suspended …) ── */}
       <Snackbar
         visible={!!snackbarError}
         onDismiss={() => dispatch(clearError())}
@@ -144,36 +219,97 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+  root: { flex: 1, backgroundColor: '#F4F5FB' },
+  scroll: { flexGrow: 1 },
 
-  // ── No cached session — plain header ────────────────────────────────────────
-  header: { alignItems: 'center', marginBottom: 30 },
-  title: { fontWeight: 'bold', color: '#6200EE' },
-  subtitle: { color: '#666', marginTop: 8 },
-
-  // ── Cached session — avatar + greeting ──────────────────────────────────────
-  avatarSection: { alignItems: 'center', marginBottom: 28 },
-  avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#6200EE',
-    justifyContent: 'center',
+  /* ── Hero ──────────────────────────────────────────────────────────────── */
+  hero: {
+    backgroundColor: PURPLE_DARK,
+    paddingTop: 72,
+    paddingBottom: 60,
+    paddingHorizontal: 28,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
+    position: 'relative',
     alignItems: 'center',
-    marginBottom: 12,
-    elevation: 5,
-    shadowColor: '#6200EE',
-    shadowOffset: { width: 0, height: 4 },
+  },
+  blob1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: PURPLE_MID, opacity: 0.45, top: -60, right: -50,
+  },
+  blob2: {
+    position: 'absolute', width: 130, height: 130, borderRadius: 65,
+    backgroundColor: PURPLE_MAIN, opacity: 0.3, bottom: -30, left: 60,
+  },
+  blob3: {
+    position: 'absolute', width: 80, height: 80, borderRadius: 40,
+    backgroundColor: '#9B59B6', opacity: 0.2, top: 20, left: -20,
+  },
+  heroContent: { alignItems: 'center', zIndex: 1 },
+  brandIcon: {
+    width: 68, height: 68, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
+  },
+  heroSmall: { color: 'rgba(255,255,255,0.65)', fontSize: 13, letterSpacing: 0.3 },
+  heroName:  { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: 0.2 },
+  heroSub:   { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 },
+
+  /* Avatar (returning user) */
+  avatarCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
+  },
+  avatarText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+
+  /* ── Floating form panel ─────────────────────────────────────────────── */
+  panel: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: -28,
+    borderRadius: 24,
+    padding: 24,
+    elevation: 10,
+    shadowColor: PURPLE_MAIN,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    marginBottom: 32,
+  },
+
+  /* Inputs */
+  input: { marginBottom: 14, backgroundColor: '#fff' },
+
+  /* Submit button */
+  submitBtn: {
+    backgroundColor: PURPLE_DARK,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 4,
+    elevation: 4,
+    shadowColor: PURPLE_DARK,
     shadowOpacity: 0.35,
     shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  avatarText: { color: '#FFFFFF', fontSize: 26, fontWeight: '700' },
-  greeting: { fontSize: 15, color: '#666' },
-  greetingName: { fontSize: 24, fontWeight: '700', color: '#4A148C', marginTop: 2 },
+  submitDisabled: { backgroundColor: '#B0BEC5', elevation: 0, shadowOpacity: 0 },
+  submitText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
 
-  // ── Pending banner ───────────────────────────────────────────────────────────
+  /* Links */
+  linkBtn: { alignItems: 'center', marginTop: 18 },
+  linkText: { color: '#888', fontSize: 14 },
+  linkAccent: { color: PURPLE_MAIN, fontWeight: '700' },
+
+  /* Pending banner */
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -184,15 +320,8 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 16,
   },
-  pendingIcon: { marginTop: 2, marginRight: 10 },
-  pendingTextContainer: { flex: 1 },
-  pendingTitle: { fontWeight: '700', color: '#7c4d00', fontSize: 14, marginBottom: 4 },
-  pendingBody: { color: '#7c4d00', fontSize: 13, lineHeight: 18 },
-
-  card: { backgroundColor: '#FFFFFF' },
-  input: { marginBottom: 16 },
-  button: { marginTop: 8, paddingVertical: 6 },
-  linkButton: { marginTop: 16 },
+  pendingTitle: { fontWeight: '700', color: '#7c4d00', fontSize: 13, marginBottom: 3 },
+  pendingBody:  { color: '#7c4d00', fontSize: 12, lineHeight: 17 },
 });
 
 export default LoginScreen;

@@ -5,23 +5,13 @@ import {
   saveUserProfile,
   getUserProfile,
   clearUserProfile,
+  clearCachedTransactions,
 } from '../../services/offlineDb';
 
 // ─── SecureStore keys (secrets only) ─────────────────────────────────────────
+// PIN is never stored locally — verification is strictly online via POST /auth/login.
 const KEY_TOKEN = 'ewallet_token';
 const KEY_REFRESH_TOKEN = 'ewallet_refresh';
-const KEY_PIN_HASH = 'ewallet_pin_hash';
-
-// ─── SHA-256 helper (pure JS, no native module) ───────────────────────────────
-// Uses a simple djb2-style hash; sufficient when protected by a 3-attempt lockout.
-function simpleHash(str) {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 33) ^ str.charCodeAt(i);
-  }
-  // Convert to unsigned 32-bit and then to a hex string
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 export const login = createAsyncThunk(
@@ -35,9 +25,6 @@ export const login = createAsyncThunk(
       await SecureStore.setItemAsync(KEY_TOKEN, accessToken);
       await SecureStore.setItemAsync(KEY_REFRESH_TOKEN, refreshToken);
 
-      // Store PIN hash (derived from the password used to log in)
-      await SecureStore.setItemAsync(KEY_PIN_HASH, simpleHash(password));
-
       // Persist non-sensitive profile to SQLite for offline access
       await saveUserProfile(user, 0);
 
@@ -50,14 +37,15 @@ export const login = createAsyncThunk(
   }
 );
 
-// ─── PIN Login (Scenario B — Hard Logout re-auth) ─────────────────────────────
-// Called from PinLockScreen when there is NO valid JWT. Reads the saved device
-// email from SQLite and calls the real /auth/login endpoint.
+// ─── PIN Login (Online PIN verification — both Scenario A and B) ──────────────
+// Scenario A (Soft Lock): isAuthenticated is true but session is locked.
+// Scenario B (Hard Logout): no valid JWT at all.
+// In both cases the email is read from SQLite and the PIN is verified online.
 export const pinLogin = createAsyncThunk(
   'auth/pinLogin',
   async ({ pin }, { rejectWithValue }) => {
     try {
-      // Read email from SQLite (single source of truth for profile data)
+      // Read email from SQLite (single source of truth for device account)
       const profile = await getUserProfile();
       if (!profile?.email) return rejectWithValue('No device account found.');
 
@@ -70,17 +58,17 @@ export const pinLogin = createAsyncThunk(
       await SecureStore.setItemAsync(KEY_TOKEN, accessToken);
       await SecureStore.setItemAsync(KEY_REFRESH_TOKEN, refreshToken);
 
-      // Refresh the stored PIN hash (PIN is confirmed correct)
-      await SecureStore.setItemAsync(KEY_PIN_HASH, simpleHash(pin));
-
-      // Refresh the SQLite profile snapshot
+      // Refresh the SQLite profile snapshot with fresh server data
       await saveUserProfile(user, 0);
 
       return { token: accessToken, user };
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Incorrect PIN. Please try again.'
-      );
+      // Distinguish network failures from wrong credentials
+      const isNetworkError = !error.response;
+      const message = isNetworkError
+        ? 'Please check your internet connection.'
+        : error.response?.data?.message || 'Incorrect PIN. Please try again.';
+      return rejectWithValue(message);
     }
   }
 );
@@ -122,12 +110,19 @@ export const loadUser = createAsyncThunk(
       await saveUserProfile(user, cachedProfile?.last_known_balance ?? 0);
 
       return { user, cachedProfile };
-    } catch {
-      // Token invalid / expired — clear JWT secrets but keep SQLite profile
-      // so the login screen can still greet the user by name.
-      await SecureStore.deleteItemAsync(KEY_TOKEN);
-      await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-      return { user: null, cachedProfile };
+    } catch (error) {
+      const status = error?.response?.status;
+
+      if (status === 401 || status === 403) {
+        // Token is genuinely invalid or revoked — evict it and force re-auth
+        await SecureStore.deleteItemAsync(KEY_TOKEN);
+        await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
+        return { user: null, cachedProfile };
+      }
+
+      // Network error or unexpected server error (5xx) — tokens are still valid.
+      // Do NOT wipe credentials; surface the offline state to the UI instead.
+      return rejectWithValue({ isNetworkError: true, cachedProfile });
     }
   }
 );
@@ -145,7 +140,7 @@ export const updateProfile = createAsyncThunk(
   }
 );
 
-// ─── Logout (standard — keeps SQLite profile for greeting on next login) ──────
+// ─── Logout (standard — full device wipe for multi-user safety) ───────────────
 export const logout = createAsyncThunk('auth/logout', async () => {
   try {
     await api.post('/auth/logout');
@@ -154,7 +149,10 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   }
   await SecureStore.deleteItemAsync(KEY_TOKEN);
   await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-  // SQLite profile intentionally preserved — login screen can still greet user.
+  // Wipe SQLite so a different user logging in on the same device
+  // cannot see any trace of the previous session.
+  await clearUserProfile();
+  await clearCachedTransactions();
   return null;
 });
 
@@ -163,9 +161,9 @@ export const wipeDevice = createAsyncThunk('auth/wipeDevice', async () => {
   try { await api.post('/auth/logout'); } catch { /* ignore */ }
   await SecureStore.deleteItemAsync(KEY_TOKEN);
   await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-  await SecureStore.deleteItemAsync(KEY_PIN_HASH);
   // Clear SQLite profile so no trace of previous user remains
   await clearUserProfile();
+  await clearCachedTransactions();
   return null;
 });
 
@@ -182,6 +180,7 @@ const authSlice = createSlice({
     // ── Offline / PIN lock state ───────────────────────────────────────
     isSessionLocked: false,   // true when app is backgrounded; shows PinLockScreen
     failCount: 0,             // consecutive wrong PIN attempts
+    isOffline: false,         // true when cold-start /auth/me fails due to network
     // Cached profile fields populated from SQLite on cold-start
     cachedFirstName: null,
     cachedLastName: null,
@@ -296,11 +295,23 @@ const authSlice = createSlice({
           state.token = null;
         }
       })
-      .addCase(loadUser.rejected, (state) => {
+      .addCase(loadUser.rejected, (state, action) => {
         state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
+        if (action.payload?.isNetworkError) {
+          // Network failure — keep auth state intact, just signal offline mode.
+          // The existing session (and PinLockScreen) remain shown.
+          state.isOffline = true;
+          if (action.payload.cachedProfile) {
+            state.cachedFirstName = action.payload.cachedProfile.first_name ?? null;
+            state.cachedLastName = action.payload.cachedProfile.last_name ?? null;
+            state.cachedEmail = action.payload.cachedProfile.email ?? null;
+          }
+        } else {
+          // Unexpected hard failure — reset auth state
+          state.isAuthenticated = false;
+          state.user = null;
+          state.token = null;
+        }
       })
 
       // ── Update Profile ───────────────────────────────────────────────
@@ -312,15 +323,18 @@ const authSlice = createSlice({
         state.cachedEmail = action.payload.email ?? state.cachedEmail;
       })
 
-      // ── Logout (keeps SQLite profile for greeting) ───────────────────
+      // ── Logout (full wipe — device clean for next user) ──────────────
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
         state.isAuthenticated = false;
         state.isSessionLocked = false;
         state.failCount = 0;
-        // cachedFirstName / cachedLastName / cachedEmail intentionally kept
-        // so the login screen can still greet the user.
+        state.isOffline = false;
+        // Clear cached profile — device must be clean for a different user
+        state.cachedFirstName = null;
+        state.cachedLastName = null;
+        state.cachedEmail = null;
       })
 
       // ── Wipe Device ──────────────────────────────────────────────────
@@ -330,6 +344,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.isSessionLocked = false;
         state.failCount = 0;
+        state.isOffline = false;
         state.cachedFirstName = null;
         state.cachedLastName = null;
         state.cachedEmail = null;

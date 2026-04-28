@@ -1,12 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, View, StyleSheet, AppState } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, AppState } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { loadUser, lockSession } from '../store/slices/authSlice';
 import { initSocket, disconnectSocket } from '../services/socket';
 
 import AuthNavigator from './AuthNavigator';
-import PinLockScreen from '../screens/auth/PinLockScreen';
 import CustomerNavigator from './CustomerNavigator';
 import MerchantNavigator from './MerchantNavigator';
 
@@ -14,7 +13,7 @@ const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated, isLoading, user, isSessionLocked, deviceEmail } =
+  const { isAuthenticated, isLoading, user, isSessionLocked, cachedEmail, isOffline } =
     useSelector((state) => state.auth);
 
   const appState = useRef(AppState.currentState);
@@ -24,17 +23,34 @@ const RootNavigator = () => {
     dispatch(loadUser());
   }, [dispatch]);
 
-  // ── AppState listener: lock when app is backgrounded ──────────────────────
+  // ── AppState listener: lock if away for more than LOCK_DELAY_MS ──────────
+  // setTimeout does NOT reliably fire in the background on React Native —
+  // the JS thread is suspended by the OS. Instead we record the timestamp
+  // when the app backgrounds and check elapsed time on foreground entry.
+  const backgroundTimestamp = useRef(null);
+  const LOCK_DELAY_MS = 15 * 1000; // 15 seconds
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (
-        appState.current === 'active' &&
-        (nextState === 'background' || nextState === 'inactive')
-      ) {
-        dispatch(lockSession());
+      if (appState.current === 'active' && nextState === 'background') {
+        // Stamp the moment we left
+        backgroundTimestamp.current = Date.now();
       }
+
+      if (nextState === 'active' && appState.current !== 'active') {
+        // Back in foreground — check how long we were away
+        if (backgroundTimestamp.current !== null) {
+          const elapsed = Date.now() - backgroundTimestamp.current;
+          if (elapsed >= LOCK_DELAY_MS) {
+            dispatch(lockSession());
+          }
+          backgroundTimestamp.current = null;
+        }
+      }
+
       appState.current = nextState;
     });
+
     return () => subscription.remove();
   }, [dispatch]);
 
@@ -53,29 +69,29 @@ const RootNavigator = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6200EE" />
+        {isOffline && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>
+              No Internet Connection
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
 
   // ── Routing logic ───────────────────────────────────────────────────────────
   //
-  //  1. Device email saved + (app was locked  OR  no valid JWT)
-  //       → PinLockScreen  (handles both Scenario A and B internally)
+  //  1. Not authenticated OR session is locked
+  //       → AuthNavigator (LoginScreen renders PIN pad or full login internally)
   //
-  //  2. No device email + not authenticated
-  //       → Full Login Screen  (first time ever, or after wipeDevice)
-  //
-  //  3. Authenticated, session not locked
-  //       → App navigator by role
+  //  2. Authenticated + session active → role-based navigator
 
-  const showPinLock = !!deviceEmail && (isSessionLocked || !isAuthenticated);
-  const showFullAuth = !isAuthenticated && !deviceEmail;
+  const showAuth = !isAuthenticated || isSessionLocked;
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {showPinLock ? (
-        <Stack.Screen name="PinLock" component={PinLockScreen} />
-      ) : showFullAuth ? (
+      {showAuth ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : user?.role?.toUpperCase() === 'MERCHANT' ? (
         <Stack.Screen name="Merchant" component={MerchantNavigator} />
@@ -92,6 +108,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
+  },
+  offlineBanner: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFB300',
+  },
+  offlineText: {
+    color: '#7c4d00',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
