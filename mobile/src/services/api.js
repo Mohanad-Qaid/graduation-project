@@ -1,6 +1,9 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from './config';
+
+const KEY_TOKEN = 'ewallet_token';
+const KEY_REFRESH_TOKEN = 'ewallet_refresh';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,7 +13,7 @@ const api = axios.create({
   },
 });
 
-// ─── Store injection ─────────────────────────────────────────────────────────
+// ─── Store injection ──────────────────────────────────────────────────────────
 // Injected at app startup (App.js) to avoid circular imports.
 let _store = null;
 export function injectStore(store) {
@@ -37,7 +40,7 @@ function processQueue(error, token = null) {
 // ─── Request interceptor ──────────────────────────────────────────────────────
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    const token = await SecureStore.getItemAsync(KEY_TOKEN);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -74,7 +77,7 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync(KEY_REFRESH_TOKEN);
 
       if (!refreshToken) {
         // No refresh token stored — force logout immediately.
@@ -85,8 +88,8 @@ api.interceptors.response.use(
       const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
       const { accessToken } = response.data.data;
 
-      // Persist the new access token.
-      await AsyncStorage.setItem('token', accessToken);
+      // Persist the new access token securely.
+      await SecureStore.setItemAsync(KEY_TOKEN, accessToken);
 
       // Unblock all queued requests with the new token.
       processQueue(null, accessToken);
@@ -95,12 +98,11 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       return api(originalRequest);
     } catch (refreshError) {
-      // Refresh failed — the session is truly over. Clear everything and
+      // Refresh failed — the session is truly over. Clear secrets and
       // dispatch logout so Redux and navigation can react.
       processQueue(refreshError, null);
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('refreshToken');
-      await AsyncStorage.removeItem('user');
+      await SecureStore.deleteItemAsync(KEY_TOKEN);
+      await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
 
       if (_store) {
         // Lazy-import to avoid circular dependency at module load time.

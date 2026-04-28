@@ -174,8 +174,9 @@ const styles = StyleSheet.create({
 
   hero: {
     backgroundColor: PURPLE_DARK,
-    paddingTop: 52, paddingBottom: 36,
+    paddingTop: 84, paddingBottom: 48,
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
     overflow: 'hidden',
   },

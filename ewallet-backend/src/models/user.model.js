@@ -77,9 +77,11 @@ module.exports = (sequelize) => {
                 type: DataTypes.STRING(100),
                 allowNull: true,
             },
-            // Last known IP — updated on each successful login
+            // Last known IP — AES-256-GCM encrypted, updated on each successful login.
+            // Format: "<iv_b64>:<authTag_b64>:<ciphertext_b64>"
+            // Decrypt with decryptIp() from utils/ipEncryption.util.js when needed.
             last_login_ip: {
-                type: DataTypes.STRING(45),  // Supports IPv4 and IPv6
+                type: DataTypes.STRING(512),  // Encrypted token; raw IP is never stored
                 allowNull: true,
             },
         },

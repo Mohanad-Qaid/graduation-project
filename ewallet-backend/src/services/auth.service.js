@@ -7,6 +7,7 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
+const { encryptIp } = require('../utils/ipEncryption.util');
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
@@ -108,9 +109,10 @@ async function login(dto) {
     const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
     await redisClient.setex(`refresh:${user.id}`, REFRESH_TTL_SECONDS, refreshToken);
 
-    // Best-effort: update last_login_ip for impossible-travel fraud detection
+    // Best-effort: update last_login_ip (AES-256-GCM encrypted) for impossible-travel fraud detection
     if (dto.loginIp) {
-        User.update({ last_login_ip: dto.loginIp }, { where: { id: user.id } })
+        const encryptedIp = encryptIp(dto.loginIp);
+        User.update({ last_login_ip: encryptedIp }, { where: { id: user.id } })
             .catch((e) => logger.warn('[auth] Failed to update last_login_ip:', e.message));
     }
 

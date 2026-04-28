@@ -27,6 +27,7 @@ export const fetchDashboardStats = createAsyncThunk(
         totalTransactions: stats.totalTransactions || 0,
         pendingWithdrawals: stats.pendingWithdrawals || 0,
         unreviewedFraudFlags: stats.unreviewedFraudFlags || 0,
+        totalRevenue: parseFloat(stats.totalRevenue || 0),
         recentTransactions,
         dailyVolume: [], // placeholder — no time-series endpoint yet
       };

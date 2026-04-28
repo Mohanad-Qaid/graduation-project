@@ -4,9 +4,17 @@ import { TextInput, Button, Text, Card, Snackbar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { login, clearError } from '../../store/slices/authSlice';
+import { getUserProfile } from '../../services/offlineDb';
 
 // Message the backend sends for PENDING accounts
 const PENDING_PHRASE = 'under review';
+
+/** Build two-letter initials from first + last name */
+function getInitials(firstName, lastName) {
+  const a = (firstName || '').trim()[0] || '';
+  const b = (lastName || '').trim()[0] || '';
+  return (a + b).toUpperCase();
+}
 
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -14,10 +22,14 @@ const LoginScreen = ({ navigation }) => {
 
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
+  const [cachedProfile, setCachedProfile] = useState(null);
 
-  // Split the error: show the amber banner for pending, Snackbar for everything else
-  const isPending = error?.toLowerCase().includes(PENDING_PHRASE);
-  const snackbarError = error && !isPending ? error : null;
+  // Load cached profile from SQLite on mount — works fully offline
+  useEffect(() => {
+    getUserProfile().then((profile) => {
+      if (profile) setCachedProfile(profile);
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -31,16 +43,34 @@ const LoginScreen = ({ navigation }) => {
     dispatch(login({ email: email.trim(), password: pin }));
   };
 
+  // Split the error: show the amber banner for pending, Snackbar for everything else
+  const isPending = error?.toLowerCase().includes(PENDING_PHRASE);
+  const snackbarError = error && !isPending ? error : null;
+
+  const initials = getInitials(cachedProfile?.first_name, cachedProfile?.last_name);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text variant="displaySmall" style={styles.title}>E-Wallet</Text>
-          <Text variant="bodyLarge" style={styles.subtitle}>Sign in to your account</Text>
-        </View>
+
+        {/* ── Letter avatar + greeting (shown when a previous session exists) ── */}
+        {cachedProfile ? (
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.greetingName}>{cachedProfile.first_name} 👋</Text>
+          </View>
+        ) : (
+          <View style={styles.header}>
+            <Text variant="displaySmall" style={styles.title}>E-Wallet</Text>
+            <Text variant="bodyLarge" style={styles.subtitle}>Sign in to your account</Text>
+          </View>
+        )}
 
         {/* ── Pending account banner ───────────────────────────── */}
         {isPending && (
@@ -117,11 +147,33 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+
+  // ── No cached session — plain header ────────────────────────────────────────
   header: { alignItems: 'center', marginBottom: 30 },
   title: { fontWeight: 'bold', color: '#6200EE' },
   subtitle: { color: '#666', marginTop: 8 },
 
-  // ── Pending banner ───────────────────────────────────────────
+  // ── Cached session — avatar + greeting ──────────────────────────────────────
+  avatarSection: { alignItems: 'center', marginBottom: 28 },
+  avatarCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#6200EE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    elevation: 5,
+    shadowColor: '#6200EE',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+  },
+  avatarText: { color: '#FFFFFF', fontSize: 26, fontWeight: '700' },
+  greeting: { fontSize: 15, color: '#666' },
+  greetingName: { fontSize: 24, fontWeight: '700', color: '#4A148C', marginTop: 2 },
+
+  // ── Pending banner ───────────────────────────────────────────────────────────
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',

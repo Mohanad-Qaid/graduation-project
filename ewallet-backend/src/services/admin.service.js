@@ -1,7 +1,7 @@
 'use strict';
 
 const { User, AdminLog, FraudFlag, Transaction, WithdrawalRequest, sequelize } = require('../models');
-const { Op } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
 
@@ -203,16 +203,65 @@ async function getAdminLogs({ page = 1, limit = 50 }) {
 
 /**
  * Aggregate counts needed by the admin dashboard in a single efficient call.
+ * Includes total platform revenue from approved withdrawal fees.
  */
 async function getDashboardStats() {
-    const [totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags] =
+    const [totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags, revenueResult] =
         await Promise.all([
             User.count({ where: { role: { [Op.ne]: 'ADMIN' } } }),
             Transaction.count(),
             WithdrawalRequest.count({ where: { status: 'PENDING' } }),
             FraudFlag.count({ where: { reviewed: false } }),
+            WithdrawalRequest.findOne({
+                where: { status: 'APPROVED' },
+                attributes: [[fn('SUM', col('fee_amount')), 'total']],
+                raw: true,
+            }),
         ]);
-    return { totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags };
+
+    const totalRevenue = parseFloat(revenueResult?.total || 0);
+    return { totalUsers, totalTransactions, pendingWithdrawals, unreviewedFraudFlags, totalRevenue };
+}
+
+// ─── Revenue Tracking ─────────────────────────────────────────────────────────
+
+/**
+ * Calculate total platform revenue from approved withdrawal fees.
+ * Supports optional date-range filtering on the processed_at timestamp.
+ *
+ * @param {object} params
+ * @param {string} [params.startDate] - ISO date string (inclusive)
+ * @param {string} [params.endDate]   - ISO date string (inclusive)
+ */
+async function getPlatformRevenue({ startDate, endDate } = {}) {
+    const where = { status: 'APPROVED' };
+
+    if (startDate || endDate) {
+        where.processed_at = {};
+        if (startDate) where.processed_at[Op.gte] = new Date(startDate);
+        if (endDate) {
+            // Include the full end day
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.processed_at[Op.lte] = end;
+        }
+    }
+
+    const result = await WithdrawalRequest.findOne({
+        where,
+        attributes: [
+            [fn('SUM', col('fee_amount')), 'totalRevenue'],
+            [fn('COUNT', col('id')), 'count'],
+        ],
+        raw: true,
+    });
+
+    return {
+        totalRevenue: parseFloat(result?.totalRevenue || 0),
+        count: parseInt(result?.count || 0, 10),
+        startDate: startDate || null,
+        endDate: endDate || null,
+    };
 }
 
 module.exports = {
@@ -225,4 +274,5 @@ module.exports = {
     reviewFraudFlag,
     getAdminLogs,
     getDashboardStats,
+    getPlatformRevenue,
 };

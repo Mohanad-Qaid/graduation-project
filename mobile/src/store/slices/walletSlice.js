@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { updateCachedBalance } from '../../services/offlineDb';
 
 export const fetchBalance = createAsyncThunk(
   'wallet/fetchBalance',
@@ -89,8 +90,11 @@ const walletSlice = createSlice({
       })
       .addCase(fetchBalance.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.balance = parseFloat(action.payload.balance) || 0;
+        const newBalance = parseFloat(action.payload.balance) || 0;
+        state.balance = newBalance;
         state.currency = action.payload.currency || 'USD';
+        // Persist to SQLite so the offline snapshot is always fresh
+        updateCachedBalance(newBalance);
       })
       .addCase(fetchBalance.rejected, (state, action) => {
         state.isLoading = false;
@@ -114,9 +118,12 @@ const walletSlice = createSlice({
       })
       .addCase(fetchMerchantDashboard.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.balance = parseFloat(action.payload.balance) || 0;
+        const newBalance = parseFloat(action.payload.balance) || 0;
+        state.balance = newBalance;
         state.currency = action.payload.currency || 'TRY';
         state.merchantStats = action.payload.merchantStats;
+        // Persist to SQLite so the offline snapshot is always fresh
+        updateCachedBalance(newBalance);
       })
       .addCase(fetchMerchantDashboard.rejected, (state, action) => {
         state.isLoading = false;

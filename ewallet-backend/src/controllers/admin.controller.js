@@ -179,6 +179,17 @@ async function getDashboardStats(req, res, next) {
     }
 }
 
+/** GET /api/v1/admin/revenue */
+async function getPlatformRevenue(req, res, next) {
+    try {
+        const { startDate, endDate } = req.query;
+        const data = await adminService.getPlatformRevenue({ startDate, endDate });
+        return sendSuccess(res, { message: 'Platform revenue retrieved.', data });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // ─── Admin Logs ───────────────────────────────────────────────────────────────
 
 /** GET /api/v1/admin/logs */
@@ -210,4 +221,5 @@ module.exports = {
     reviewFraudFlag,
     getAdminLogs,
     getDashboardStats,
+    getPlatformRevenue,
 };

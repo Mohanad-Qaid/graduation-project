@@ -67,12 +67,34 @@ const WithdrawalRequests = () => {
       ),
     },
     {
-      title: 'Amount',
+      title: 'Amount (Gross)',
       dataIndex: 'amount',
       key: 'amount',
       render: (amount) => (
         <span style={{ fontWeight: 600, color: '#6200EE' }}>
           <DollarOutlined /> {Number(amount).toFixed(2)} TRY
+        </span>
+      ),
+    },
+    {
+      title: 'Fee Collected',
+      dataIndex: 'fee_amount',
+      key: 'fee_amount',
+      render: (fee, record) => (
+        <span style={{ color: '#999', fontSize: 13 }}>
+          {fee != null
+            ? `${Number(fee).toFixed(2)} TRY (${(parseFloat(record.fee_rate || 0) * 100).toFixed(0)}%)`
+            : '—'}
+        </span>
+      ),
+    },
+    {
+      title: 'Net Payout',
+      dataIndex: 'net_amount',
+      key: 'net_amount',
+      render: (net) => (
+        <span style={{ fontWeight: 700, color: '#388E3C' }}>
+          {net != null ? `${Number(net).toFixed(2)} TRY` : '—'}
         </span>
       ),
     },

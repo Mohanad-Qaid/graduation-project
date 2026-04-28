@@ -10,6 +10,7 @@ import { requestWithdrawal, clearError, clearWithdrawalSuccess } from '../../sto
 
 const PURPLE_DARK = '#1A006B';
 const PURPLE_MAIN = '#6200EE';
+const FEE_RATE = 0.07; // Must match WITHDRAWAL_FEE_RATE in fees.config.js
 
 const RequestWithdrawalScreen = ({ navigation }) => {
     const dispatch = useDispatch();
@@ -19,6 +20,12 @@ const RequestWithdrawalScreen = ({ navigation }) => {
     const [amount, setAmount] = useState('');
     const [bankName, setBankName] = useState('');
     const [bankAccount, setBankAccount] = useState('');
+
+    // Derived fee values — recomputed on every amount keystroke
+    const parsedAmount = parseFloat(amount);
+    const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
+    const feeAmount = isValidAmount ? (parsedAmount * FEE_RATE).toFixed(2) : null;
+    const netAmount = isValidAmount ? (parsedAmount - parseFloat(feeAmount)).toFixed(2) : null;
 
     const [snackVisible, setSnackVisible] = useState(false);
     const [snackMessage, setSnackMessage] = useState('');
@@ -105,6 +112,20 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                         activeOutlineColor={PURPLE_MAIN}
                         left={<TextInput.Icon icon="cash" color={PURPLE_MAIN} />}
                     />
+
+                    {/* Live fee breakdown — only shown when a valid amount is entered */}
+                    {isValidAmount && (
+                        <View style={styles.feeBreakdown}>
+                            <View style={styles.feeRow}>
+                                <Text style={styles.feeLabel}>Platform fee ({(FEE_RATE * 100).toFixed(0)}%)</Text>
+                                <Text style={styles.feeValue}>− {feeAmount} TRY</Text>
+                            </View>
+                            <View style={[styles.feeRow, styles.feeRowNet]}>
+                                <Text style={styles.feeNetLabel}>You will receive</Text>
+                                <Text style={styles.feeNetValue}>{netAmount} TRY</Text>
+                            </View>
+                        </View>
+                    )}
 
                     <TextInput
                         label="Bank Name"
@@ -230,6 +251,31 @@ const styles = StyleSheet.create({
     },
     infoIcon: { marginTop: 2, marginRight: 10 },
     infoText: { flex: 1, color: '#1565C0', fontSize: 13, lineHeight: 18 },
+    // Fee breakdown block
+    feeBreakdown: {
+        backgroundColor: '#F3E5F5',
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginTop: -8,
+        marginBottom: 15,
+    },
+    feeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 3,
+    },
+    feeRowNet: {
+        borderTopWidth: 1,
+        borderTopColor: '#CE93D8',
+        marginTop: 4,
+        paddingTop: 6,
+    },
+    feeLabel: { fontSize: 12, color: '#7B1FA2' },
+    feeValue: { fontSize: 12, color: '#7B1FA2' },
+    feeNetLabel: { fontSize: 13, fontWeight: '600', color: '#4A148C' },
+    feeNetValue: { fontSize: 13, fontWeight: '700', color: '#4A148C' },
 });
 
 export default RequestWithdrawalScreen;

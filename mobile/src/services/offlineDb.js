@@ -3,7 +3,7 @@ import * as SQLite from 'expo-sqlite';
 let db = null;
 
 /**
- * Opens the SQLite database and ensures the transactions table exists.
+ * Opens the SQLite database and ensures required tables exist.
  * Calling this multiple times is safe — returns the cached db instance.
  */
 async function getDatabase() {
@@ -24,6 +24,17 @@ async function getDatabase() {
         status      TEXT,
         createdAt   TEXT,
         synced      INTEGER DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS user_profile (
+        id                 TEXT PRIMARY KEY,
+        first_name         TEXT,
+        last_name          TEXT,
+        email              TEXT,
+        phone              TEXT,
+        role               TEXT,
+        last_known_balance REAL DEFAULT 0,
+        updated_at         TEXT
       );
     `);
 
@@ -148,5 +159,84 @@ export async function clearCachedTransactions() {
     await database.runAsync('DELETE FROM transactions');
   } catch (err) {
     console.warn('[offlineDb] clearCachedTransactions failed:', err);
+  }
+}
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+
+/**
+ * Upsert user profile snapshot and last known balance into SQLite.
+ * Called after every successful login or loadUser response.
+ * @param {object} user   - user object from the server
+ * @param {number} balance - current wallet balance (0 if not yet fetched)
+ */
+export async function saveUserProfile(user, balance = 0) {
+  try {
+    const database = await getDatabase();
+    await database.runAsync(
+      `INSERT OR REPLACE INTO user_profile
+        (id, first_name, last_name, email, phone, role, last_known_balance, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        user.first_name ?? user.firstName ?? null,
+        user.last_name ?? user.lastName ?? null,
+        user.email ?? null,
+        user.phone ?? null,
+        user.role ?? null,
+        balance,
+        new Date().toISOString(),
+      ]
+    );
+  } catch (err) {
+    console.warn('[offlineDb] saveUserProfile failed:', err);
+  }
+}
+
+/**
+ * Read the stored user profile snapshot (used on cold-start / offline).
+ * Returns null if no profile has been saved yet.
+ * @returns {Promise<object|null>}
+ */
+export async function getUserProfile() {
+  try {
+    const database = await getDatabase();
+    const row = await database.getFirstAsync(
+      'SELECT * FROM user_profile LIMIT 1'
+    );
+    return row ?? null;
+  } catch (err) {
+    console.warn('[offlineDb] getUserProfile failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Update only the balance column for the stored user profile.
+ * Called after every successful balance fetch so the snapshot stays fresh.
+ * @param {number} balance
+ */
+export async function updateCachedBalance(balance) {
+  try {
+    const database = await getDatabase();
+    await database.runAsync(
+      'UPDATE user_profile SET last_known_balance = ?, updated_at = ?',
+      [balance, new Date().toISOString()]
+    );
+  } catch (err) {
+    console.warn('[offlineDb] updateCachedBalance failed:', err);
+  }
+}
+
+/**
+ * Remove the user profile row from SQLite.
+ * Called on logout or wipeDevice so no stale data is left behind.
+ */
+export async function clearUserProfile() {
+  try {
+    const database = await getDatabase();
+    await database.runAsync('DELETE FROM user_profile');
+  } catch (err) {
+    console.warn('[offlineDb] clearUserProfile failed:', err);
   }
 }

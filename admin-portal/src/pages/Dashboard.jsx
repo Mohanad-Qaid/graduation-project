@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Row, Col, Card, Statistic, Table, Typography, Spin, Alert } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Spin } from 'antd';
 import {
   UserOutlined,
   TransactionOutlined,
   BankOutlined,
   WarningOutlined,
+  DollarCircleOutlined,
 } from '@ant-design/icons';
 import { fetchDashboardStats } from '../store/slices/dashboardSlice';
 import dayjs from 'dayjs';
@@ -70,16 +71,6 @@ const Dashboard = () => {
     <div>
       <Title level={4} style={{ marginBottom: 16 }}>Dashboard Overview</Title>
 
-      {/* NOTE: Static UI placeholder — data sourced from 4 separate API calls.
-          TODO: Replace with a single backend stats endpoint in the future. */}
-      <Alert
-        message="Dashboard Data"
-        description="Counts are live from the API. Charts are placeholder UI — to be wired to a future /admin/stats endpoint."
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        closable
-      />
 
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
@@ -119,6 +110,17 @@ const Dashboard = () => {
               value={stats.unreviewedFraudFlags}
               prefix={<WarningOutlined style={{ color: '#F44336' }} />}
               valueStyle={{ color: '#F44336' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="stat-card">
+            <Statistic
+              title="Platform Revenue"
+              value={Number(stats.totalRevenue || 0).toFixed(2)}
+              prefix={<DollarCircleOutlined style={{ color: '#388E3C' }} />}
+              suffix="TRY"
+              valueStyle={{ color: '#388E3C', fontWeight: 700 }}
             />
           </Card>
         </Col>

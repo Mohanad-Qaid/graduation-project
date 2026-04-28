@@ -74,10 +74,6 @@ const ProfileScreen = () => {
             </Text>
           </View>
           <Text style={styles.heroName} numberOfLines={1}>{displayName}</Text>
-          <View style={styles.merchantBadge}>
-            <Icon name="store-outline" size={13} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.merchantBadgeText}> Merchant Account</Text>
-          </View>
         </View>
 
         {/* ── Single unified card ── */}
@@ -173,7 +169,7 @@ const styles = StyleSheet.create({
 
   hero: {
     backgroundColor: PURPLE_DARK,
-    paddingTop: 52, paddingBottom: 36,
+    paddingTop: 84, paddingBottom: 48,
     alignItems: 'center',
     borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
     overflow: 'hidden',
@@ -194,13 +190,6 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
   heroName: { color: '#fff', fontSize: 20, fontWeight: '700', maxWidth: '80%' },
-  merchantBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12, paddingVertical: 4,
-    borderRadius: 20, marginTop: 8,
-  },
-  merchantBadgeText: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 22,

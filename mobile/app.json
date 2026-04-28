@@ -1,6 +1,7 @@
 {
   "plugins": [
-    "expo-sqlite"
+    "expo-sqlite",
+    "expo-secure-store"
   ],
   "android": {
     "package": "com.anonymous.ewalletmobile"

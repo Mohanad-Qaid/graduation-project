@@ -19,6 +19,7 @@ router.use(authenticate, authorize('ADMIN'));
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
 router.get('/stats', controller.getDashboardStats);
+router.get('/revenue', controller.getPlatformRevenue);
 
 // ─── User Management ──────────────────────────────────────────────────────────
 router.get('/users', paginationRules, validate, controller.getAllUsers);

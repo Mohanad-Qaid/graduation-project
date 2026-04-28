@@ -24,6 +24,12 @@ const fmt = (amount, currency) =>
 const fmtDate = (iso) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+const getInitials = (firstName, lastName) => {
+  const f = firstName?.[0] || '';
+  const l = lastName?.[0] || '';
+  return (f + l).toUpperCase() || '?';
+};
+
 /* ─── Quick Action Chip ───────────────────────────────────────────────────── */
 const ActionChip = ({ icon, label, onPress, iconBg, iconColor }) => (
   <TouchableOpacity style={styles.chip} onPress={onPress} activeOpacity={0.75}>
@@ -142,7 +148,9 @@ const DashboardScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('Profile')}
               activeOpacity={0.8}
             >
-              <Icon name="account-circle-outline" size={26} color="#fff" />
+              <Text style={styles.avatarInitials}>
+                {getInitials(user?.first_name, user?.last_name)}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -295,7 +303,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginTop: 2,
-    maxWidth: '75%',
+    maxWidth: '100%',
   },
   avatarBtn: {
     width: 44,
@@ -306,6 +314,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.25)',
+  },
+  avatarInitials: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   balLabel: {
     color: 'rgba(255,255,255,0.6)',
