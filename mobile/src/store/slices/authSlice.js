@@ -1,17 +1,40 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as SecureStore from 'expo-secure-store';
 import api from '../../services/api';
-import {
-  saveUserProfile,
-  getUserProfile,
-  clearUserProfile,
-  clearCachedTransactions,
-} from '../../services/offlineDb';
+// SQLite is still used by other screens (transaction cache, balance).
+// Auth thunks must NOT depend on it — expo-sqlite's async API fails on
+// Expo Go / New Architecture with NullPointerException on prepareAsync.
+import { clearCachedTransactions } from '../../services/offlineDb';
 
-// ─── SecureStore keys (secrets only) ─────────────────────────────────────────
-// PIN is never stored locally — verification is strictly online via POST /auth/login.
-const KEY_TOKEN = 'ewallet_token';
+// ─── Storage keys ─────────────────────────────────────────────────────────────
+const KEY_TOKEN         = 'ewallet_token';
 const KEY_REFRESH_TOKEN = 'ewallet_refresh';
+const KEY_DEV_EMAIL     = 'ewallet_device_email';
+const KEY_DEV_FIRSTNAME = 'ewallet_device_firstname';
+const KEY_DEV_LASTNAME  = 'ewallet_device_lastname';
+
+// ─── Helpers (all use SecureStore — already installed, works in Expo Go) ──────
+async function saveDeviceRegistration(user) {
+  const email     = user?.email ?? '';
+  const firstName = user?.first_name ?? user?.firstName ?? '';
+  const lastName  = user?.last_name  ?? user?.lastName  ?? '';
+  await SecureStore.setItemAsync(KEY_DEV_EMAIL,     email);
+  await SecureStore.setItemAsync(KEY_DEV_FIRSTNAME, firstName);
+  await SecureStore.setItemAsync(KEY_DEV_LASTNAME,  lastName);
+}
+
+async function loadDeviceRegistration() {
+  const email     = await SecureStore.getItemAsync(KEY_DEV_EMAIL);
+  const firstName = await SecureStore.getItemAsync(KEY_DEV_FIRSTNAME);
+  const lastName  = await SecureStore.getItemAsync(KEY_DEV_LASTNAME);
+  return email ? { email, firstName, lastName } : null;
+}
+
+async function clearDeviceRegistration() {
+  await SecureStore.deleteItemAsync(KEY_DEV_EMAIL);
+  await SecureStore.deleteItemAsync(KEY_DEV_FIRSTNAME);
+  await SecureStore.deleteItemAsync(KEY_DEV_LASTNAME);
+}
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 export const login = createAsyncThunk(
@@ -21,12 +44,12 @@ export const login = createAsyncThunk(
       const response = await api.post('/auth/login', { email, password });
       const { accessToken, refreshToken, user } = response.data.data;
 
-      // Store JWT secrets in SecureStore
+      // JWT → SecureStore
       await SecureStore.setItemAsync(KEY_TOKEN, accessToken);
       await SecureStore.setItemAsync(KEY_REFRESH_TOKEN, refreshToken);
 
-      // Persist non-sensitive profile to SQLite for offline access
-      await saveUserProfile(user, 0);
+      // Device registration → AsyncStorage (works everywhere including Expo Go)
+      await saveDeviceRegistration(user);
 
       return { token: accessToken, user };
     } catch (error) {
@@ -37,33 +60,31 @@ export const login = createAsyncThunk(
   }
 );
 
-// ─── PIN Login (Online PIN verification — both Scenario A and B) ──────────────
-// Scenario A (Soft Lock): isAuthenticated is true but session is locked.
-// Scenario B (Hard Logout): no valid JWT at all.
-// In both cases the email is read from SQLite and the PIN is verified online.
+// ─── PIN Login ────────────────────────────────────────────────────────────────
+// Reads the saved email from AsyncStorage and calls /auth/login with the PIN.
+// Works for both Scenario A (soft lock) and Scenario B (hard logout).
 export const pinLogin = createAsyncThunk(
   'auth/pinLogin',
   async ({ pin }, { rejectWithValue }) => {
     try {
-      // Read email from SQLite (single source of truth for device account)
-      const profile = await getUserProfile();
-      if (!profile?.email) return rejectWithValue('No device account found.');
+      const device = await loadDeviceRegistration();
+      if (!device?.email) {
+        return rejectWithValue('No device account found. Please log in again.');
+      }
 
       const response = await api.post('/auth/login', {
-        email: profile.email,
+        email: device.email,
         password: pin,
       });
       const { accessToken, refreshToken, user } = response.data.data;
 
       await SecureStore.setItemAsync(KEY_TOKEN, accessToken);
       await SecureStore.setItemAsync(KEY_REFRESH_TOKEN, refreshToken);
-
-      // Refresh the SQLite profile snapshot with fresh server data
-      await saveUserProfile(user, 0);
+      // Refresh device registration with latest server data
+      await saveDeviceRegistration(user);
 
       return { token: accessToken, user };
     } catch (error) {
-      // Distinguish network failures from wrong credentials
       const isNetworkError = !error.response;
       const message = isNetworkError
         ? 'Please check your internet connection.'
@@ -88,41 +109,34 @@ export const register = createAsyncThunk(
   }
 );
 
-// ─── Load User (cold-start session restore) ───────────────────────────────────
+// ─── Load User (cold-start) ───────────────────────────────────────────────────
 export const loadUser = createAsyncThunk(
   'auth/loadUser',
   async (_, { rejectWithValue }) => {
-    // Always attempt to read the offline profile snapshot first.
-    // This lets the UI show the name / letter avatar even before any network call.
-    const cachedProfile = await getUserProfile();
+    // Always load device registration from AsyncStorage first.
+    // This populates the "Welcome back" greeting even before the network call.
+    const device = await loadDeviceRegistration();
 
     try {
       const token = await SecureStore.getItemAsync(KEY_TOKEN);
       if (!token) {
-        // No JWT — return cached profile only; RootNavigator shows PinLockScreen
-        return { user: null, cachedProfile };
+        // No JWT — user is hard-logged-out. Show PinLockScreen if device is registered.
+        return { user: null, device };
       }
-      // Valid token found — fetch fresh user data from the server
       const response = await api.get('/auth/me');
       const user = response.data.data;
-
-      // Refresh the SQLite snapshot with fresh data (keep balance as-is)
-      await saveUserProfile(user, cachedProfile?.last_known_balance ?? 0);
-
-      return { user, cachedProfile };
+      // Refresh device registration with latest server data
+      await saveDeviceRegistration(user);
+      return { user, device };
     } catch (error) {
       const status = error?.response?.status;
-
       if (status === 401 || status === 403) {
-        // Token is genuinely invalid or revoked — evict it and force re-auth
         await SecureStore.deleteItemAsync(KEY_TOKEN);
         await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-        return { user: null, cachedProfile };
+        return { user: null, device };
       }
-
-      // Network error or unexpected server error (5xx) — tokens are still valid.
-      // Do NOT wipe credentials; surface the offline state to the UI instead.
-      return rejectWithValue({ isNetworkError: true, cachedProfile });
+      // Network / 5xx — keep tokens, show offline mode
+      return rejectWithValue({ isNetworkError: true, device });
     }
   }
 );
@@ -140,30 +154,25 @@ export const updateProfile = createAsyncThunk(
   }
 );
 
-// ─── Logout (standard — full device wipe for multi-user safety) ───────────────
+// ─── Logout ───────────────────────────────────────────────────────────────────
+// Clears JWT but intentionally KEEPS device registration so PinLockScreen
+// is shown on next cold-start (the whole point of this feature).
 export const logout = createAsyncThunk('auth/logout', async () => {
-  try {
-    await api.post('/auth/logout');
-  } catch {
-    // Ignore — clear local storage regardless
-  }
+  try { await api.post('/auth/logout'); } catch { /* ignore */ }
   await SecureStore.deleteItemAsync(KEY_TOKEN);
   await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-  // Wipe SQLite so a different user logging in on the same device
-  // cannot see any trace of the previous session.
-  await clearUserProfile();
-  await clearCachedTransactions();
+  try { await clearCachedTransactions(); } catch { /* SQLite may fail in Expo Go */ }
   return null;
 });
 
 // ─── Wipe Device (switch account / 3 wrong PINs) ─────────────────────────────
+// Full wipe — clears everything including device registration.
 export const wipeDevice = createAsyncThunk('auth/wipeDevice', async () => {
   try { await api.post('/auth/logout'); } catch { /* ignore */ }
   await SecureStore.deleteItemAsync(KEY_TOKEN);
   await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-  // Clear SQLite profile so no trace of previous user remains
-  await clearUserProfile();
-  await clearCachedTransactions();
+  await clearDeviceRegistration();
+  try { await clearCachedTransactions(); } catch { /* SQLite may fail in Expo Go */ }
   return null;
 });
 
@@ -177,39 +186,30 @@ const authSlice = createSlice({
     isLoading: true,
     error: null,
     registrationSuccess: false,
-    // ── Offline / PIN lock state ───────────────────────────────────────
-    isSessionLocked: false,   // true when app is backgrounded; shows PinLockScreen
-    failCount: 0,             // consecutive wrong PIN attempts
-    isOffline: false,         // true when cold-start /auth/me fails due to network
-    // Cached profile fields populated from SQLite on cold-start
+    isSessionLocked: false,
+    failCount: 0,
+    isOffline: false,
+    // Device registration (from AsyncStorage — reliable on Expo Go)
+    cachedEmail: null,
     cachedFirstName: null,
     cachedLastName: null,
-    cachedEmail: null,
   },
   reducers: {
-    clearError: (state) => {
-      state.error = null;
-    },
-    clearRegistrationSuccess: (state) => {
-      state.registrationSuccess = false;
-    },
+    clearError: (state) => { state.error = null; },
+    clearRegistrationSuccess: (state) => { state.registrationSuccess = false; },
     lockSession: (state) => {
-      if (state.isAuthenticated) {
-        state.isSessionLocked = true;
-      }
+      if (state.isAuthenticated) state.isSessionLocked = true;
     },
     unlockSession: (state) => {
       state.isSessionLocked = false;
       state.failCount = 0;
       state.error = null;
     },
-    incrementFailCount: (state) => {
-      state.failCount += 1;
-    },
+    incrementFailCount: (state) => { state.failCount += 1; },
   },
   extraReducers: (builder) => {
     builder
-      // ── Login ────────────────────────────────────────────────────────
+      // ── Login ──────────────────────────────────────────────────────────
       .addCase(login.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -222,16 +222,16 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         const u = action.payload.user;
+        state.cachedEmail     = u?.email ?? null;
         state.cachedFirstName = u?.first_name ?? u?.firstName ?? null;
-        state.cachedLastName = u?.last_name ?? u?.lastName ?? null;
-        state.cachedEmail = u?.email ?? null;
+        state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
 
-      // ── PIN Login (Hard Logout re-auth) ──────────────────────────────
+      // ── PIN Login ──────────────────────────────────────────────────────
       .addCase(pinLogin.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -244,9 +244,9 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         const u = action.payload.user;
+        state.cachedEmail     = u?.email ?? null;
         state.cachedFirstName = u?.first_name ?? u?.firstName ?? null;
-        state.cachedLastName = u?.last_name ?? u?.lastName ?? null;
-        state.cachedEmail = u?.email ?? null;
+        state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
       })
       .addCase(pinLogin.rejected, (state, action) => {
         state.isLoading = false;
@@ -254,7 +254,7 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ── Register ─────────────────────────────────────────────────────
+      // ── Register ───────────────────────────────────────────────────────
       .addCase(register.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -269,25 +269,21 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ── Load User ────────────────────────────────────────────────────
-      .addCase(loadUser.pending, (state) => {
-        state.isLoading = true;
-      })
+      // ── Load User ──────────────────────────────────────────────────────
+      .addCase(loadUser.pending, (state) => { state.isLoading = true; })
       .addCase(loadUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        const { user, cachedProfile } = action.payload;
+        const { user, device } = action.payload;
 
-        // Populate cached fields from SQLite for offline UI
-        if (cachedProfile) {
-          state.cachedFirstName = cachedProfile.first_name ?? null;
-          state.cachedLastName = cachedProfile.last_name ?? null;
-          state.cachedEmail = cachedProfile.email ?? null;
+        if (device) {
+          state.cachedEmail     = device.email     ?? null;
+          state.cachedFirstName = device.firstName ?? null;
+          state.cachedLastName  = device.lastName  ?? null;
         }
 
         if (user) {
           state.isAuthenticated = true;
           state.user = user;
-          // App cold-started with a valid session → lock it immediately
           state.isSessionLocked = true;
         } else {
           state.isAuthenticated = false;
@@ -298,32 +294,29 @@ const authSlice = createSlice({
       .addCase(loadUser.rejected, (state, action) => {
         state.isLoading = false;
         if (action.payload?.isNetworkError) {
-          // Network failure — keep auth state intact, just signal offline mode.
-          // The existing session (and PinLockScreen) remain shown.
           state.isOffline = true;
-          if (action.payload.cachedProfile) {
-            state.cachedFirstName = action.payload.cachedProfile.first_name ?? null;
-            state.cachedLastName = action.payload.cachedProfile.last_name ?? null;
-            state.cachedEmail = action.payload.cachedProfile.email ?? null;
+          const d = action.payload?.device;
+          if (d) {
+            state.cachedEmail     = d.email     ?? null;
+            state.cachedFirstName = d.firstName ?? null;
+            state.cachedLastName  = d.lastName  ?? null;
           }
         } else {
-          // Unexpected hard failure — reset auth state
           state.isAuthenticated = false;
           state.user = null;
           state.token = null;
         }
       })
 
-      // ── Update Profile ───────────────────────────────────────────────
+      // ── Update Profile ─────────────────────────────────────────────────
       .addCase(updateProfile.fulfilled, (state, action) => {
         state.user = { ...state.user, ...action.payload };
-        // Keep cached fields in sync
         state.cachedFirstName = action.payload.first_name ?? state.cachedFirstName;
-        state.cachedLastName = action.payload.last_name ?? state.cachedLastName;
-        state.cachedEmail = action.payload.email ?? state.cachedEmail;
+        state.cachedLastName  = action.payload.last_name  ?? state.cachedLastName;
+        state.cachedEmail     = action.payload.email      ?? state.cachedEmail;
       })
 
-      // ── Logout (full wipe — device clean for next user) ──────────────
+      // ── Logout (keeps device registration) ────────────────────────────
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
@@ -331,13 +324,11 @@ const authSlice = createSlice({
         state.isSessionLocked = false;
         state.failCount = 0;
         state.isOffline = false;
-        // Clear cached profile — device must be clean for a different user
-        state.cachedFirstName = null;
-        state.cachedLastName = null;
-        state.cachedEmail = null;
+        // cachedEmail / cachedFirstName / cachedLastName intentionally kept
+        // so the PinLockScreen shows on next cold-start
       })
 
-      // ── Wipe Device ──────────────────────────────────────────────────
+      // ── Wipe Device ────────────────────────────────────────────────────
       .addCase(wipeDevice.fulfilled, (state) => {
         state.user = null;
         state.token = null;
@@ -345,9 +336,9 @@ const authSlice = createSlice({
         state.isSessionLocked = false;
         state.failCount = 0;
         state.isOffline = false;
+        state.cachedEmail = null;
         state.cachedFirstName = null;
         state.cachedLastName = null;
-        state.cachedEmail = null;
       });
   },
 });

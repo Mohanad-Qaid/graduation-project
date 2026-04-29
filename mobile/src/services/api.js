@@ -38,11 +38,19 @@ function processQueue(error, token = null) {
 }
 
 // ─── Request interceptor ──────────────────────────────────────────────────────
+// Public auth endpoints must NOT receive a stale token — doing so causes the
+// backend to return 401, which triggers the refresh loop below and wipes the
+// session before the fresh login even has a chance to succeed.
+const PUBLIC_PATHS = ['/auth/login', '/auth/register', '/auth/refresh'];
+
 api.interceptors.request.use(
   async (config) => {
-    const token = await SecureStore.getItemAsync(KEY_TOKEN);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const isPublic = PUBLIC_PATHS.some((p) => config.url?.endsWith(p));
+    if (!isPublic) {
+      const token = await SecureStore.getItemAsync(KEY_TOKEN);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },

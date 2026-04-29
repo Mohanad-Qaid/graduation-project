@@ -14,14 +14,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   login,
   pinLogin,
-  logout,
   wipeDevice,
   clearError,
 } from '../../store/slices/authSlice';
 
 // ─── Design tokens (mirrors DashboardScreen) ─────────────────────────────────
 const PURPLE_DARK = '#1A006B';
-const PURPLE_MID  = '#4A0099';
+const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 
 const PENDING_PHRASE = 'under review';
@@ -33,6 +32,8 @@ function getInitials(firstName, lastName) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+const MAX_ATTEMPTS = 3;
+
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const {
@@ -45,14 +46,24 @@ const LoginScreen = ({ navigation }) => {
   } = useSelector((state) => state.auth);
 
   const [email, setEmail] = useState('');
-  const [pin, setPin]     = useState('');
+  const [pin, setPin] = useState('');
+  // Track the previous failCount so we can detect a NEW failure
+  const prevFailCount = React.useRef(failCount);
 
-  // Wipe device after 3 wrong PIN attempts
+  // Wipe device after MAX_ATTEMPTS wrong PIN attempts
   useEffect(() => {
-    if (failCount >= 3) dispatch(wipeDevice());
+    if (failCount >= MAX_ATTEMPTS) dispatch(wipeDevice());
   }, [failCount, dispatch]);
 
-  // Reset fields when switching between views
+  // Clear PIN whenever a new failure is recorded (failCount went up)
+  useEffect(() => {
+    if (failCount > prevFailCount.current) {
+      setPin('');
+    }
+    prevFailCount.current = failCount;
+  }, [failCount]);
+
+  // Reset fields when switching between views (e.g. after wipeDevice cachedEmail → null)
   useEffect(() => {
     setPin('');
     setEmail('');
@@ -75,10 +86,13 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const isExperienced = !!cachedEmail;
-  const initials      = getInitials(cachedFirstName, cachedLastName);
-  const fullName      = [cachedFirstName, cachedLastName].filter(Boolean).join(' ');
-  const isPending     = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
+  const initials = getInitials(cachedFirstName, cachedLastName);
+  const fullName = [cachedFirstName, cachedLastName].filter(Boolean).join(' ');
+  const isPending = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
   const snackbarError = error && !isPending ? error : null;
+  // Remaining attempts only shown in PIN mode after at least one failure
+  const attemptsLeft = MAX_ATTEMPTS - failCount;
+  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS;
 
   return (
     <KeyboardAvoidingView
@@ -137,6 +151,19 @@ const LoginScreen = ({ navigation }) => {
             </View>
           )}
 
+          {/* Inline PIN error — persistent, clearly visible */}
+          {showAttemptsWarning && (
+            <View style={styles.errorBanner}>
+              <Icon name="alert-circle-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
+              <Text style={styles.errorBannerText}>
+                Incorrect PIN.{' '}
+                <Text style={{ fontWeight: '700' }}>
+                  {attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining.
+                </Text>
+              </Text>
+            </View>
+          )}
+
           {/* Email — hidden for returning users */}
           {!isExperienced && (
             <TextInput
@@ -181,7 +208,7 @@ const LoginScreen = ({ navigation }) => {
             {isLoading ? (
               <Text style={styles.submitText}>Verifying…</Text>
             ) : (
-              <Text style={styles.submitText}>{isExperienced ? 'Unlock' : 'Sign In'}</Text>
+              <Text style={styles.submitText}>{isExperienced ? 'Log In' : 'Sign In'}</Text>
             )}
           </TouchableOpacity>
 
@@ -195,11 +222,11 @@ const LoginScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
-          {/* Switch account */}
+          {/* Switch account — full wipe so next user starts clean */}
           {isExperienced && (
             <TouchableOpacity
               style={styles.linkBtn}
-              onPress={() => dispatch(logout())}
+              onPress={() => dispatch(wipeDevice())}
             >
               <Text style={styles.linkText}>Sign in with a <Text style={styles.linkAccent}>different account</Text></Text>
             </TouchableOpacity>
@@ -257,8 +284,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   heroSmall: { color: 'rgba(255,255,255,0.65)', fontSize: 13, letterSpacing: 0.3 },
-  heroName:  { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: 0.2 },
-  heroSub:   { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 },
+  heroName: { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: 0.2 },
+  heroSub: { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 },
 
   /* Avatar (returning user) */
   avatarCircle: {
@@ -321,7 +348,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   pendingTitle: { fontWeight: '700', color: '#7c4d00', fontSize: 13, marginBottom: 3 },
-  pendingBody:  { color: '#7c4d00', fontSize: 12, lineHeight: 17 },
+  pendingBody: { color: '#7c4d00', fontSize: 12, lineHeight: 17 },
+
+  /* Inline PIN error banner */
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    borderWidth: 1,
+    borderColor: '#EF9A9A',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  errorBannerText: { flex: 1, color: '#B71C1C', fontSize: 13 },
 });
 
 export default LoginScreen;

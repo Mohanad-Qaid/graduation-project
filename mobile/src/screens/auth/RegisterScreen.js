@@ -15,20 +15,20 @@ import { register, clearError, clearRegistrationSuccess } from '../../store/slic
 
 // ─── Design tokens (mirrors DashboardScreen) ─────────────────────────────────
 const PURPLE_DARK = '#1A006B';
-const PURPLE_MID  = '#4A0099';
+const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 
 const RegisterScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { isLoading, error, registrationSuccess } = useSelector((state) => state.auth);
 
-  const [role, setRole]               = useState('CUSTOMER');
-  const [firstName, setFirstName]     = useState('');
-  const [lastName, setLastName]       = useState('');
-  const [email, setEmail]             = useState('');
-  const [phone, setPhone]             = useState('');
-  const [pin, setPin]                 = useState('');
-  const [confirmPin, setConfirmPin]   = useState('');
+  const [role, setRole] = useState('CUSTOMER');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [validationError, setValidationError] = useState('');
 
@@ -78,10 +78,10 @@ const RegisterScreen = ({ navigation }) => {
     if (!validateForm()) return;
     const payload = {
       first_name: firstName.trim(),
-      last_name:  lastName.trim(),
-      email:      email.trim(),
-      phone:      phone.trim(),
-      password:   pin,
+      last_name: lastName.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      password: pin,
       role,
     };
     if (role === 'MERCHANT') payload.business_name = businessName.trim();
@@ -315,8 +315,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   heroSmall: { color: 'rgba(255,255,255,0.65)', fontSize: 13, letterSpacing: 0.3 },
-  heroName:  { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: 0.2 },
-  heroSub:   { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 },
+  heroName: { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: 0.2 },
+  heroSub: { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 },
 
   /* ── Floating form panel ─────────────────────────────────────────────── */
   panel: {
