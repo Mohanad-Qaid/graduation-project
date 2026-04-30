@@ -168,7 +168,13 @@ const PaymentConfirmScreen = ({ navigation, route }) => {
         </Button>
       </ScrollView>
 
-      <Snackbar visible={!!error} onDismiss={() => dispatch(clearError())} duration={3000}>
+      <Snackbar
+        visible={!!error}
+        onDismiss={() => dispatch(clearError())}
+        duration={5000}
+        action={{ label: 'OK', onPress: () => dispatch(clearError()) }}
+        style={{ backgroundColor: '#B71C1C' }}
+      >
         {error}
       </Snackbar>
     </KeyboardAvoidingView>

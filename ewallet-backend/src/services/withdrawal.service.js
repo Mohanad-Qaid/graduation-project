@@ -13,11 +13,33 @@ const { WITHDRAWAL_FEE_RATE } = require('../config/fees.config');
  *
  * @param {object} params
  * @param {string} params.merchantId
- * @param {number} params.amount - gross amount requested
+ * @param {number} params.amount        - gross amount requested
+ * @param {string} params.bankName      - destination bank name
+ * @param {string} params.bankAccount   - Turkish IBAN (26 chars, TR + 24 digits)
+ * @param {string} params.bankAccountName - account holder full name
  */
-async function requestWithdrawal({ merchantId, amount }) {
+async function requestWithdrawal({ merchantId, amount, bankName, bankAccount, bankAccountName }) {
     const dbTxn = await sequelize.transaction();
     try {
+        // ── Basic field validation ──────────────────────────────────────────
+        if (!bankName || !bankName.trim()) {
+            throw createHttpError(400, 'Bank name is required.');
+        }
+        if (!bankAccountName || !bankAccountName.trim()) {
+            throw createHttpError(400, 'Account holder name is required.');
+        }
+        if (!bankAccount || !bankAccount.trim()) {
+            throw createHttpError(400, 'IBAN is required.');
+        }
+        // Turkish IBAN: exactly 26 chars, starts with TR, followed by 24 digits
+        const ibanClean = bankAccount.replace(/[\s-]/g, '').toUpperCase();
+        if (!/^TR\d{24}$/.test(ibanClean)) {
+            throw createHttpError(
+                400,
+                'Invalid IBAN. A Turkish IBAN must start with TR followed by exactly 24 digits (26 characters total).'
+            );
+        }
+
         const wallet = await Wallet.findOne({
             where: { user_id: merchantId },
             transaction: dbTxn,
@@ -26,12 +48,16 @@ async function requestWithdrawal({ merchantId, amount }) {
         if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
         const grossAmount = parseFloat(amount);
+        if (isNaN(grossAmount) || grossAmount < 1000) {
+            throw createHttpError(400, 'Minimum withdrawal amount is 1,000 TL.');
+        }
+
         const balance = parseFloat(wallet.balance);
         if (balance < grossAmount) {
             throw createHttpError(400, `Insufficient balance. Available: ${balance}`);
         }
 
-        // Compute fee breakdown
+        // Compute fee breakdown (rate is always 5%, stored in fees.config.js)
         const feeAmount = parseFloat((grossAmount * WITHDRAWAL_FEE_RATE).toFixed(2));
         const netAmount = parseFloat((grossAmount - feeAmount).toFixed(2));
 
@@ -44,7 +70,9 @@ async function requestWithdrawal({ merchantId, amount }) {
                 merchant_id: merchantId,
                 wallet_id: wallet.id,
                 amount: grossAmount,
-                fee_rate: WITHDRAWAL_FEE_RATE,
+                bank_name: bankName.trim(),
+                bank_account: ibanClean,
+                bank_account_name: bankAccountName.trim(),
                 fee_amount: feeAmount,
                 net_amount: netAmount,
                 status: 'PENDING',
@@ -97,7 +125,8 @@ async function approveWithdrawal(requestId, adminId) {
                 transaction_type: 'WITHDRAWAL',
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
-                description: `Withdrawal approved by admin — fee: ${request.fee_amount ?? 0} TRY retained`,
+                description: `Withdrawal approved — fee: ${request.fee_amount ?? 0} TRY retained by platform`,
+                counterparty: request.bank_account_name || request.bank_name || null,
             },
             { transaction: dbTxn }
         );

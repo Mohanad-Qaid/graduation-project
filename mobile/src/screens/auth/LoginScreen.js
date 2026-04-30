@@ -37,7 +37,7 @@ const MAX_ATTEMPTS = 3;
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const {
-    isLoading,
+    isSubmitting: isLoading,
     error,
     failCount,
     cachedEmail,
@@ -212,7 +212,7 @@ const LoginScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          {/* Register link */}
+          {/* Register link — only shown for new users */}
           {!isExperienced && (
             <TouchableOpacity
               style={styles.linkBtn}
@@ -221,24 +221,15 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkAccent}>Register</Text></Text>
             </TouchableOpacity>
           )}
-
-          {/* Switch account — full wipe so next user starts clean */}
-          {isExperienced && (
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => dispatch(wipeDevice())}
-            >
-              <Text style={styles.linkText}>Sign in with a <Text style={styles.linkAccent}>different account</Text></Text>
-            </TouchableOpacity>
-          )}
         </View>
       </ScrollView>
 
       <Snackbar
         visible={!!snackbarError}
         onDismiss={() => dispatch(clearError())}
-        duration={4000}
+        duration={5000}
         action={{ label: 'OK', onPress: () => dispatch(clearError()) }}
+        style={{ backgroundColor: '#B71C1C' }}
       >
         {snackbarError}
       </Snackbar>

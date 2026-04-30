@@ -7,6 +7,7 @@ import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchMerchantDashboard, clearError } from '../../store/slices/walletSlice';
+import { getUnreadNotificationCount } from '../../services/offlineDb';
 
 const PURPLE_DARK = '#1A006B';
 const PURPLE_MID = '#4A0099';
@@ -44,12 +45,23 @@ const MerchantDashboard = ({ navigation }) => {
 
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState('');
+  const [unreadCount, setUnreadCount]   = useState(0);
 
   useEffect(() => {
     if (error) { setSnackMessage(error); setSnackVisible(true); }
   }, [error]);
 
-  const loadData = useCallback(() => { dispatch(fetchMerchantDashboard()); }, [dispatch]);
+  const refreshUnread = useCallback(async () => {
+    try {
+      const count = await getUnreadNotificationCount();
+      setUnreadCount(count);
+    } catch { /* SQLite may fail silently on Expo Go */ }
+  }, []);
+
+  const loadData = useCallback(() => {
+    dispatch(fetchMerchantDashboard());
+    refreshUnread();
+  }, [dispatch, refreshUnread]);
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleDismissSnack = () => { setSnackVisible(false); dispatch(clearError()); };
@@ -78,8 +90,24 @@ const MerchantDashboard = ({ navigation }) => {
               <Text style={styles.greetSmall}>Hello,</Text>
               <Text style={styles.greetName} numberOfLines={1}>{displayName}</Text>
             </View>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+            <View style={styles.heroTopRight}>
+              {/* Bell notification button */}
+              <TouchableOpacity
+                style={styles.bellBtn}
+                onPress={() => navigation.navigate('Notifications')}
+              >
+                <Icon name="bell-outline" size={22} color="#fff" />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+              </View>
             </View>
           </View>
 
@@ -224,6 +252,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 52, paddingHorizontal: 22, marginBottom: 20,
   },
+  heroTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bellBtn: {
+    position: 'relative',
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bellBadge: {
+    position: 'absolute', top: -2, right: -2,
+    backgroundColor: '#FF1744',
+    borderRadius: 9, minWidth: 18, height: 18,
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   greetSmall: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   greetName: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2, maxWidth: '80%' },
   avatarCircle: {

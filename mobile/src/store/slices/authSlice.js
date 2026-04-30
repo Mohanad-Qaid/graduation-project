@@ -183,7 +183,8 @@ const authSlice = createSlice({
     user: null,
     token: null,
     isAuthenticated: false,
-    isLoading: true,
+    isBootstrapping: true,   // true only while loadUser runs on cold-start
+    isSubmitting: false,     // true during login / register / updateProfile
     error: null,
     registrationSuccess: false,
     isSessionLocked: false,
@@ -211,11 +212,11 @@ const authSlice = createSlice({
     builder
       // ── Login ──────────────────────────────────────────────────────────
       .addCase(login.pending, (state) => {
-        state.isLoading = true;
+        state.isSubmitting = true;
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.isAuthenticated = true;
         state.isSessionLocked = false;
         state.failCount = 0;
@@ -227,17 +228,17 @@ const authSlice = createSlice({
         state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
       })
       .addCase(login.rejected, (state, action) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.error = action.payload;
       })
 
       // ── PIN Login ──────────────────────────────────────────────────────
       .addCase(pinLogin.pending, (state) => {
-        state.isLoading = true;
+        state.isSubmitting = true;
         state.error = null;
       })
       .addCase(pinLogin.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.isAuthenticated = true;
         state.isSessionLocked = false;
         state.failCount = 0;
@@ -249,30 +250,30 @@ const authSlice = createSlice({
         state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
       })
       .addCase(pinLogin.rejected, (state, action) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.failCount += 1;
         state.error = action.payload;
       })
 
       // ── Register ───────────────────────────────────────────────────────
       .addCase(register.pending, (state) => {
-        state.isLoading = true;
+        state.isSubmitting = true;
         state.error = null;
         state.registrationSuccess = false;
       })
       .addCase(register.fulfilled, (state) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.registrationSuccess = true;
       })
       .addCase(register.rejected, (state, action) => {
-        state.isLoading = false;
+        state.isSubmitting = false;
         state.error = action.payload;
       })
 
       // ── Load User ──────────────────────────────────────────────────────
-      .addCase(loadUser.pending, (state) => { state.isLoading = true; })
+      .addCase(loadUser.pending, (state) => { state.isBootstrapping = true; })
       .addCase(loadUser.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.isBootstrapping = false;
         const { user, device } = action.payload;
 
         if (device) {
@@ -292,7 +293,7 @@ const authSlice = createSlice({
         }
       })
       .addCase(loadUser.rejected, (state, action) => {
-        state.isLoading = false;
+        state.isBootstrapping = false;
         if (action.payload?.isNetworkError) {
           state.isOffline = true;
           const d = action.payload?.device;
@@ -309,11 +310,20 @@ const authSlice = createSlice({
       })
 
       // ── Update Profile ─────────────────────────────────────────────────
+      .addCase(updateProfile.pending, (state) => {
+        state.isSubmitting = true;
+        state.error = null;
+      })
       .addCase(updateProfile.fulfilled, (state, action) => {
+        state.isSubmitting = false;
         state.user = { ...state.user, ...action.payload };
         state.cachedFirstName = action.payload.first_name ?? state.cachedFirstName;
         state.cachedLastName  = action.payload.last_name  ?? state.cachedLastName;
         state.cachedEmail     = action.payload.email      ?? state.cachedEmail;
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.error = action.payload;
       })
 
       // ── Logout (keeps device registration) ────────────────────────────
@@ -350,5 +360,10 @@ export const {
   unlockSession,
   incrementFailCount,
 } = authSlice.actions;
+
+// Convenience selector — screens that drive their own button spinner
+// use isSubmitting; RootNavigator uses isBootstrapping.
+export const selectIsSubmitting    = (state) => state.auth.isSubmitting;
+export const selectIsBootstrapping = (state) => state.auth.isBootstrapping;
 
 export default authSlice.reducer;

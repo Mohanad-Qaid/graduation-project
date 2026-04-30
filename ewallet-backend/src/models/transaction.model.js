@@ -60,6 +60,10 @@ module.exports = (sequelize) => {
                 type: DataTypes.STRING(100),
                 allowNull: true, // only PAYMENT transactions have a category
             },
+            counterparty: {
+                type: DataTypes.STRING(150),
+                allowNull: true,
+            },
         },
         {
             tableName: 'transactions',

@@ -67,10 +67,13 @@ async function getTransactions(req, res, next) {
  */
 async function requestWithdrawal(req, res, next) {
     try {
-        const { amount } = req.body;
+        const { amount, bankName, bankAccount, bankAccountName } = req.body;
         const request = await withdrawalService.requestWithdrawal({
             merchantId: req.user.id,
             amount: parseFloat(amount),
+            bankName,
+            bankAccount,
+            bankAccountName,
         });
         return sendSuccess(res, { statusCode: 201, message: 'Withdrawal request submitted.', data: request });
     } catch (err) {

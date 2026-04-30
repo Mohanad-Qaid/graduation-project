@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { syncWithdrawalNotifications } from '../../services/offlineDb';
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetch',
@@ -59,17 +60,17 @@ export const generateQR = createAsyncThunk(
 
 export const requestWithdrawal = createAsyncThunk(
   'transactions/requestWithdrawal',
-  async ({ amount, bankAccount, bankName }, { rejectWithValue }) => {
+  async ({ amount, bankAccount, bankName, bankAccountName }, { rejectWithValue }) => {
     try {
-      // Correct endpoint: POST /api/v1/merchant/withdrawal
       const response = await api.post('/merchant/withdrawal', {
         amount,
         bankAccount,
         bankName,
+        bankAccountName,
       });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Withdrawal request failed');
+      return rejectWithValue(error.response?.data?.message || error.response?.data?.error || 'Withdrawal request failed');
     }
   }
 );
@@ -189,12 +190,16 @@ const transactionSlice = createSlice({
       })
       .addCase(fetchWithdrawals.fulfilled, (state, action) => {
         state.isLoading = false;
+        const incoming = action.payload.data || [];
         if (action.payload.page === 1) {
-          state.withdrawals = action.payload.withdrawals;
+          state.withdrawals = incoming;
         } else {
-          state.withdrawals = [...state.withdrawals, ...action.payload.withdrawals];
+          state.withdrawals = [...state.withdrawals, ...incoming];
         }
-        state.withdrawalPagination = action.payload.pagination;
+        state.withdrawalPagination = action.payload.meta || null;
+        // Sync comparison: generates SQLite notifications if any withdrawal
+        // changed from PENDING → APPROVED / REJECTED since last fetch.
+        syncWithdrawalNotifications(incoming).catch(() => {});
       })
       .addCase(fetchWithdrawals.rejected, (state, action) => {
         state.isLoading = false;

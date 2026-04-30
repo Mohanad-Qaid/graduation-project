@@ -39,10 +39,20 @@ module.exports = (sequelize) => {
                 },
                 comment: 'Gross amount the merchant requested (before fee deduction)',
             },
-            fee_rate: {
-                type: DataTypes.DECIMAL(5, 4),
+            bank_name: {
+                type: DataTypes.STRING(100),
                 allowNull: true,
-                comment: 'Fee rate snapshot at time of request (e.g. 0.0700 = 7%)',
+                comment: 'Name of the destination bank (e.g. Ziraat Bankası)',
+            },
+            bank_account: {
+                type: DataTypes.STRING(34),
+                allowNull: true,
+                comment: 'Turkish IBAN — always TR + 24 digits (26 chars total)',
+            },
+            bank_account_name: {
+                type: DataTypes.STRING(100),
+                allowNull: true,
+                comment: 'Account holder full name',
             },
             fee_amount: {
                 type: DataTypes.NUMERIC(15, 2),
@@ -83,7 +93,6 @@ module.exports = (sequelize) => {
             indexes: [
                 { fields: ['merchant_id'] },
                 { fields: ['status'] },
-                { fields: ['processed_by'] },
                 { fields: ['createdAt'] },
             ],
         }

@@ -3,73 +3,87 @@ import {
     View, StyleSheet, ScrollView,
     TouchableOpacity, StatusBar, KeyboardAvoidingView, Platform
 } from 'react-native';
-import { Text, Snackbar, TextInput, ActivityIndicator } from 'react-native-paper';
+import { Text, TextInput, ActivityIndicator } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { requestWithdrawal, clearError, clearWithdrawalSuccess } from '../../store/slices/transactionSlice';
+import { fetchBalance } from '../../store/slices/walletSlice';
 
-const PURPLE_DARK = '#1A006B';
-const PURPLE_MAIN = '#6200EE';
-const FEE_RATE = 0.07; // Must match WITHDRAWAL_FEE_RATE in fees.config.js
+const PURPLE_DARK  = '#1A006B';
+const PURPLE_MAIN  = '#4A148C';
+const PURPLE_LIGHT = '#6200EE';
+const FEE_RATE = 0.05; // Must match WITHDRAWAL_FEE_RATE in fees.config.js (5%)
+
+// Turkish IBAN regex: TR + exactly 24 digits = 26 chars total
+const TURKISH_IBAN_REGEX = /^TR\d{24}$/;
 
 const RequestWithdrawalScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { isLoading, error, withdrawalSuccess } = useSelector((state) => state.transactions);
     const { balance, currency } = useSelector((state) => state.wallet);
 
-    const [amount, setAmount] = useState('');
-    const [bankName, setBankName] = useState('');
-    const [bankAccount, setBankAccount] = useState('');
+    const [amount, setAmount]                 = useState('');
+    const [bankName, setBankName]             = useState('');
+    const [bankAccount, setBankAccount]       = useState('');
+    const [bankAccountName, setBankAccountName] = useState('');
+    const [fieldError, setFieldError]         = useState('');
 
     // Derived fee values — recomputed on every amount keystroke
-    const parsedAmount = parseFloat(amount);
+    const parsedAmount  = parseFloat(amount);
     const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
-    const feeAmount = isValidAmount ? (parsedAmount * FEE_RATE).toFixed(2) : null;
-    const netAmount = isValidAmount ? (parsedAmount - parseFloat(feeAmount)).toFixed(2) : null;
-
-    const [snackVisible, setSnackVisible] = useState(false);
-    const [snackMessage, setSnackMessage] = useState('');
+    const feeAmount     = isValidAmount ? (parsedAmount * FEE_RATE).toFixed(2) : null;
+    const netAmount     = isValidAmount ? (parsedAmount - parseFloat(feeAmount)).toFixed(2) : null;
 
     useEffect(() => {
         if (error) {
-            setSnackMessage(error);
-            setSnackVisible(true);
+            setFieldError(error);
             dispatch(clearError());
         }
         if (withdrawalSuccess) {
-            setSnackMessage('Withdrawal request submitted successfully');
-            setSnackVisible(true);
-            setAmount('');
-            setBankName('');
-            setBankAccount('');
             dispatch(clearWithdrawalSuccess());
-            // Navigate to withdrawal history after short delay
-            setTimeout(() => {
-                navigation.navigate('WithdrawalHistory');
-            }, 1500);
+            dispatch(fetchBalance()); // refresh dashboard balance immediately
+            navigation.navigate('Dashboard');
         }
     }, [error, withdrawalSuccess, dispatch, navigation]);
 
     const handleSubmit = () => {
-        if (!amount || !bankName || !bankAccount) {
-            setSnackMessage('Please fill all fields');
-            setSnackVisible(true);
+        setFieldError('');
+
+        // Presence checks
+        if (!amount || !bankName.trim() || !bankAccount.trim() || !bankAccountName.trim()) {
+            setFieldError('Please fill in all fields.');
             return;
         }
 
-        if (parseFloat(amount) <= 0) {
-            setSnackMessage('Amount must be greater than zero');
-            setSnackVisible(true);
+        // Amount checks
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+            setFieldError('Please enter a valid amount.');
+            return;
+        }
+        if (parsedAmount < 1000) {
+            setFieldError('Minimum withdrawal amount is 1,000 TL.');
+            return;
+        }
+        if (parsedAmount > parseFloat(balance || 0)) {
+            setFieldError('Insufficient balance.');
             return;
         }
 
-        if (parseFloat(amount) > balance) {
-            setSnackMessage('Insufficient balance');
-            setSnackVisible(true);
+        // IBAN validation — strip spaces and uppercase before checking
+        const ibanClean = bankAccount.replace(/\s/g, '').toUpperCase();
+        if (!TURKISH_IBAN_REGEX.test(ibanClean)) {
+            setFieldError(
+                'Invalid IBAN. A Turkish IBAN must start with "TR" followed by exactly 24 digits (26 characters total).'
+            );
             return;
         }
 
-        dispatch(requestWithdrawal({ amount: parseFloat(amount), bankName, bankAccount }));
+        dispatch(requestWithdrawal({
+            amount: parsedAmount,
+            bankName: bankName.trim(),
+            bankAccount: ibanClean,
+            bankAccountName: bankAccountName.trim(),
+        }));
     };
 
     return (
@@ -84,7 +98,10 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                 <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                     <Icon name="arrow-left" size={24} color="#fff" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Request Withdrawal</Text>
+                <View>
+                    <Text style={styles.headerTitle}>Request Withdrawal</Text>
+                    <Text style={styles.headerSub}>Transfer your balance to your bank</Text>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -95,16 +112,25 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                     <Text style={styles.balanceAmount}>
                         {Number(balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency || 'TRY'}
                     </Text>
+                    <Text style={styles.balanceNote}>Minimum withdrawal: 1,000 TRY</Text>
                 </View>
+
+                {/* Error Banner */}
+                {!!fieldError && (
+                    <View style={styles.errorBanner}>
+                        <Icon name="alert-circle-outline" size={18} color="#B71C1C" />
+                        <Text style={styles.errorText}>{fieldError}</Text>
+                    </View>
+                )}
 
                 {/* Input Form */}
                 <View style={styles.formCard}>
                     <Text style={styles.sectionTitle}>Withdrawal Details</Text>
 
                     <TextInput
-                        label="Amount"
+                        label="Amount (TRY)"
                         value={amount}
-                        onChangeText={setAmount}
+                        onChangeText={(v) => { setAmount(v); setFieldError(''); }}
                         keyboardType="numeric"
                         style={styles.input}
                         mode="outlined"
@@ -113,8 +139,8 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                         left={<TextInput.Icon icon="cash" color={PURPLE_MAIN} />}
                     />
 
-                    {/* Live fee breakdown — only shown when a valid amount is entered */}
-                    {isValidAmount && (
+                    {/* Live fee breakdown */}
+                    {isValidAmount && parsedAmount >= 1000 && (
                         <View style={styles.feeBreakdown}>
                             <View style={styles.feeRow}>
                                 <Text style={styles.feeLabel}>Platform fee ({(FEE_RATE * 100).toFixed(0)}%)</Text>
@@ -127,10 +153,12 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                         </View>
                     )}
 
+                    <Text style={styles.sectionTitle2}>Bank Information</Text>
+
                     <TextInput
                         label="Bank Name"
                         value={bankName}
-                        onChangeText={setBankName}
+                        onChangeText={(v) => { setBankName(v); setFieldError(''); }}
                         style={styles.input}
                         mode="outlined"
                         outlineColor="#E0E0E0"
@@ -140,16 +168,30 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                     />
 
                     <TextInput
-                        label="IBAN / Account Number"
+                        label="Account Holder Name"
+                        value={bankAccountName}
+                        onChangeText={(v) => { setBankAccountName(v); setFieldError(''); }}
+                        style={styles.input}
+                        mode="outlined"
+                        outlineColor="#E0E0E0"
+                        activeOutlineColor={PURPLE_MAIN}
+                        left={<TextInput.Icon icon="account" color={PURPLE_MAIN} />}
+                        placeholder="Full name as on the account"
+                    />
+
+                    <TextInput
+                        label="IBAN"
                         value={bankAccount}
-                        onChangeText={setBankAccount}
+                        onChangeText={(v) => { setBankAccount(v); setFieldError(''); }}
                         style={styles.input}
                         mode="outlined"
                         outlineColor="#E0E0E0"
                         activeOutlineColor={PURPLE_MAIN}
                         left={<TextInput.Icon icon="card-account-details-outline" color={PURPLE_MAIN} />}
-                        keyboardType="default"
+                        placeholder="TR00 0000 0000 0000 0000 0000 00"
+                        autoCapitalize="characters"
                     />
+                    <Text style={styles.ibanHint}>Turkish IBAN: TR + 24 digits (26 characters total)</Text>
 
                     <TouchableOpacity
                         style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
@@ -170,20 +212,12 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                 <View style={styles.infoBox}>
                     <Icon name="information-outline" size={20} color="#1565C0" style={styles.infoIcon} />
                     <Text style={styles.infoText}>
-                        Withdrawals typically take 1-3 business days to be processed and deposited into your account.
+                        Withdrawals are reviewed by an admin and typically processed within 1-3 business days.
+                        A 5% platform fee is deducted from the gross amount.
                     </Text>
                 </View>
 
             </ScrollView>
-
-            <Snackbar
-                visible={snackVisible}
-                onDismiss={() => setSnackVisible(false)}
-                duration={3000}
-                action={{ label: 'Dismiss', onPress: () => setSnackVisible(false) }}
-            >
-                {snackMessage}
-            </Snackbar>
         </KeyboardAvoidingView>
     );
 };
@@ -194,36 +228,75 @@ const styles = StyleSheet.create({
         backgroundColor: PURPLE_DARK,
         paddingTop: 50,
         paddingHorizontal: 20,
-        paddingBottom: 25,
+        paddingBottom: 28,
         flexDirection: 'row',
         alignItems: 'center',
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
     },
     backButton: { marginRight: 15 },
     headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-    scrollContent: { padding: 20, paddingTop: 10 },
+    headerSub:   { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    scrollContent: { padding: 20, paddingTop: 16, paddingBottom: 40 },
+
     balanceCard: {
-        backgroundColor: PURPLE_MAIN,
+        backgroundColor: PURPLE_LIGHT,
         borderRadius: 16,
         padding: 20,
-        marginBottom: 20,
-        marginTop: 10,
-        elevation: 4, shadowColor: PURPLE_MAIN, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+        marginBottom: 16,
+        elevation: 4,
+        shadowColor: PURPLE_LIGHT,
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
     },
-    balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 5 },
+    balanceLabel:  { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 4 },
     balanceAmount: { color: '#fff', fontSize: 28, fontWeight: '800' },
+    balanceNote:   { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 6 },
+
+    errorBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFEBEE',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginBottom: 14,
+        gap: 8,
+    },
+    errorText: { flex: 1, color: '#B71C1C', fontSize: 13 },
+
     formCard: {
         backgroundColor: '#fff',
         borderRadius: 16,
         padding: 20,
-        elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
     },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 15 },
-    input: {
-        backgroundColor: '#fff',
-        marginBottom: 15,
+    sectionTitle:  { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 14 },
+    sectionTitle2: { fontSize: 14, fontWeight: '600', color: '#4A148C', marginTop: 6, marginBottom: 12 },
+    input: { backgroundColor: '#fff', marginBottom: 12 },
+    ibanHint: { fontSize: 11, color: '#9E9E9E', marginTop: -8, marginBottom: 14, marginLeft: 4 },
+
+    // Fee breakdown
+    feeBreakdown: {
+        backgroundColor: '#F3E5F5',
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        marginTop: -4,
+        marginBottom: 14,
     },
+    feeRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
+    feeRowNet:  { borderTopWidth: 1, borderTopColor: '#CE93D8', marginTop: 4, paddingTop: 6 },
+    feeLabel:   { fontSize: 12, color: '#7B1FA2' },
+    feeValue:   { fontSize: 12, color: '#7B1FA2' },
+    feeNetLabel: { fontSize: 13, fontWeight: '600', color: '#4A148C' },
+    feeNetValue: { fontSize: 13, fontWeight: '700', color: '#4A148C' },
+
     submitButton: {
         backgroundColor: PURPLE_MAIN,
         borderRadius: 12,
@@ -232,50 +305,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 14,
         marginTop: 8,
+        gap: 8,
     },
-    submitButtonDisabled: {
-        backgroundColor: '#B39DDB',
-    },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-        marginRight: 8,
-    },
+    submitButtonDisabled: { backgroundColor: '#B39DDB' },
+    submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
     infoBox: {
         flexDirection: 'row',
         backgroundColor: '#E3F2FD',
         borderRadius: 12,
         padding: 16,
-        marginTop: 20,
+        marginTop: 16,
     },
     infoIcon: { marginTop: 2, marginRight: 10 },
-    infoText: { flex: 1, color: '#1565C0', fontSize: 13, lineHeight: 18 },
-    // Fee breakdown block
-    feeBreakdown: {
-        backgroundColor: '#F3E5F5',
-        borderRadius: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        marginTop: -8,
-        marginBottom: 15,
-    },
-    feeRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 3,
-    },
-    feeRowNet: {
-        borderTopWidth: 1,
-        borderTopColor: '#CE93D8',
-        marginTop: 4,
-        paddingTop: 6,
-    },
-    feeLabel: { fontSize: 12, color: '#7B1FA2' },
-    feeValue: { fontSize: 12, color: '#7B1FA2' },
-    feeNetLabel: { fontSize: 13, fontWeight: '600', color: '#4A148C' },
-    feeNetValue: { fontSize: 13, fontWeight: '700', color: '#4A148C' },
+    infoText: { flex: 1, color: '#1565C0', fontSize: 13, lineHeight: 20 },
 });
 
 export default RequestWithdrawalScreen;

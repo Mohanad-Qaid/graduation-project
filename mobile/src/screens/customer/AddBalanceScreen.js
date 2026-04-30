@@ -165,7 +165,9 @@ const AddBalanceScreen = ({ navigation }) => {
       <Snackbar
         visible={!!error || !!localError}
         onDismiss={() => { dispatch(clearError()); setLocalError(null); }}
-        duration={3000}
+        duration={5000}
+        action={{ label: 'OK', onPress: () => { dispatch(clearError()); setLocalError(null); } }}
+        style={{ backgroundColor: '#B71C1C' }}
       >
         {error || localError}
       </Snackbar>

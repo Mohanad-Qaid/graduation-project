@@ -10,15 +10,18 @@ import WithdrawalHistoryScreen from '../screens/merchant/WithdrawalHistoryScreen
 import TransactionHistoryScreen from '../screens/merchant/TransactionHistoryScreen';
 import ProfileScreen from '../screens/merchant/ProfileScreen';
 
+import NotificationsScreen from '../screens/merchant/NotificationsScreen';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 const HomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="Dashboard" component={MerchantDashboard} />
-    <Stack.Screen name="GenerateQR" component={GenerateQRScreen} />
-    <Stack.Screen name="RequestWithdrawal" component={RequestWithdrawalScreen} />
-    <Stack.Screen name="WithdrawalHistory" component={WithdrawalHistoryScreen} />
+    <Stack.Screen name="Dashboard"          component={MerchantDashboard} />
+    <Stack.Screen name="GenerateQR"         component={GenerateQRScreen} />
+    <Stack.Screen name="RequestWithdrawal"  component={RequestWithdrawalScreen} />
+    <Stack.Screen name="WithdrawalHistory"  component={WithdrawalHistoryScreen} />
+    <Stack.Screen name="Notifications"      component={NotificationsScreen} />
   </Stack.Navigator>
 );
 

@@ -20,7 +20,7 @@ const PURPLE_MAIN = '#6200EE';
 
 const RegisterScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { isLoading, error, registrationSuccess } = useSelector((state) => state.auth);
+  const { isSubmitting: isLoading, error, registrationSuccess } = useSelector((state) => state.auth);
 
   const [role, setRole] = useState('CUSTOMER');
   const [firstName, setFirstName] = useState('');
@@ -31,6 +31,15 @@ const RegisterScreen = ({ navigation }) => {
   const [confirmPin, setConfirmPin] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [validationError, setValidationError] = useState('');
+
+  // Combined error — shows server error OR local validation error
+  const displayError = error || validationError;
+
+  // Clear errors as soon as the user starts fixing their input
+  const clearErrors = () => {
+    if (validationError) setValidationError('');
+    if (error) dispatch(clearError());
+  };
 
   useEffect(() => {
     return () => {
@@ -145,11 +154,19 @@ const RegisterScreen = ({ navigation }) => {
             style={styles.segmented}
           />
 
+          {/* ── Inline error banner — shown for both validation & server errors ── */}
+          {!!displayError && (
+            <View style={styles.errorBanner}>
+              <Icon name="alert-circle-outline" size={18} color="#B71C1C" style={{ marginRight: 8, marginTop: 1 }} />
+              <Text style={styles.errorBannerText}>{displayError}</Text>
+            </View>
+          )}
+
           {/* Name */}
           <TextInput
             label="First Name *"
             value={firstName}
-            onChangeText={setFirstName}
+            onChangeText={(v) => { setFirstName(v); clearErrors(); }}
             mode="outlined"
             style={styles.input}
             activeOutlineColor={PURPLE_MAIN}
@@ -159,7 +176,7 @@ const RegisterScreen = ({ navigation }) => {
           <TextInput
             label="Last Name *"
             value={lastName}
-            onChangeText={setLastName}
+            onChangeText={(v) => { setLastName(v); clearErrors(); }}
             mode="outlined"
             style={styles.input}
             activeOutlineColor={PURPLE_MAIN}
@@ -170,7 +187,7 @@ const RegisterScreen = ({ navigation }) => {
           <TextInput
             label="Email *"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => { setEmail(v); clearErrors(); }}
             mode="outlined"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -183,7 +200,7 @@ const RegisterScreen = ({ navigation }) => {
           <TextInput
             label="Phone *"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(v) => { setPhone(v); clearErrors(); }}
             mode="outlined"
             keyboardType="phone-pad"
             style={styles.input}
@@ -196,7 +213,7 @@ const RegisterScreen = ({ navigation }) => {
             <TextInput
               label="Business Name *"
               value={businessName}
-              onChangeText={setBusinessName}
+              onChangeText={(v) => { setBusinessName(v); clearErrors(); }}
               mode="outlined"
               style={styles.input}
               activeOutlineColor={PURPLE_MAIN}
@@ -255,14 +272,7 @@ const RegisterScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Error snackbar */}
-      <Snackbar
-        visible={!!error || !!validationError}
-        onDismiss={() => { dispatch(clearError()); setValidationError(''); }}
-        duration={3500}
-      >
-        {error || validationError}
-      </Snackbar>
+      {/* Error is now shown as inline banner — no error Snackbar needed */}
 
       {/* Success snackbar */}
       <Snackbar
@@ -336,6 +346,19 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 },
 
   segmented: { marginBottom: 16 },
+
+  /* Inline error banner */
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFEBEE',
+    borderWidth: 1,
+    borderColor: '#EF9A9A',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  errorBannerText: { flex: 1, color: '#B71C1C', fontSize: 13, lineHeight: 18 },
 
   input: { marginBottom: 12, backgroundColor: '#fff' },
 

@@ -13,7 +13,7 @@ const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated, isLoading, user, isSessionLocked, cachedEmail, isOffline } =
+  const { isAuthenticated, isBootstrapping, user, isSessionLocked, cachedEmail, isOffline } =
     useSelector((state) => state.auth);
 
   const appState = useRef(AppState.currentState);
@@ -65,7 +65,7 @@ const RootNavigator = () => {
   }, [isAuthenticated, isSessionLocked, user?.id]);
 
   // ── Splash / loading ────────────────────────────────────────────────────────
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6200EE" />

@@ -36,6 +36,29 @@ async function getDatabase() {
         last_known_balance REAL DEFAULT 0,
         updated_at         TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id                TEXT PRIMARY KEY,
+        status            TEXT,
+        amount            REAL,
+        fee_amount        REAL,
+        net_amount        REAL,
+        bank_name         TEXT,
+        bank_account      TEXT,
+        bank_account_name TEXT,
+        rejection_reason  TEXT,
+        createdAt         TEXT,
+        updatedAt         TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id            TEXT PRIMARY KEY,
+        title         TEXT,
+        body          TEXT,
+        withdrawal_id TEXT,
+        is_read       INTEGER DEFAULT 0,
+        createdAt     TEXT
+      );
     `);
 
     console.log('[offlineDb] Database ready.');
@@ -238,5 +261,161 @@ export async function clearUserProfile() {
     await database.runAsync('DELETE FROM user_profile');
   } catch (err) {
     console.warn('[offlineDb] clearUserProfile failed:', err);
+  }
+}
+
+// ─── Withdrawals ───────────────────────────────────────────────────────────────
+
+/**
+ * Cache the latest list of withdrawals from the server.
+ * Replaces all rows so the local cache always matches the server.
+ * @param {Array} withdrawals
+ */
+export async function cacheWithdrawals(withdrawals) {
+  try {
+    const database = await getDatabase();
+    await database.withTransactionAsync(async () => {
+      await database.runAsync('DELETE FROM withdrawals');
+      for (const w of withdrawals) {
+        await database.runAsync(
+          `INSERT OR REPLACE INTO withdrawals
+            (id, status, amount, fee_amount, net_amount, bank_name, bank_account,
+             bank_account_name, rejection_reason, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            w.id,
+            w.status ?? null,
+            w.amount ?? null,
+            w.fee_amount ?? null,
+            w.net_amount ?? null,
+            w.bank_name ?? null,
+            w.bank_account ?? null,
+            w.bank_account_name ?? null,
+            w.rejection_reason ?? null,
+            w.createdAt ?? null,
+            w.updatedAt ?? null,
+          ]
+        );
+      }
+    });
+  } catch (err) {
+    console.warn('[offlineDb] cacheWithdrawals failed:', err);
+  }
+}
+
+/**
+ * Read all locally cached withdrawals.
+ * @returns {Promise<Array>}
+ */
+export async function getCachedWithdrawals() {
+  try {
+    const database = await getDatabase();
+    return await database.getAllAsync(
+      'SELECT * FROM withdrawals ORDER BY createdAt DESC'
+    );
+  } catch (err) {
+    console.warn('[offlineDb] getCachedWithdrawals failed:', err);
+    return [];
+  }
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+
+/**
+ * Compare newly fetched withdrawals against the locally cached ones.
+ * If any withdrawal changed from PENDING to APPROVED or REJECTED,
+ * insert a notification record so the merchant is alerted.
+ * Then refreshes the local withdrawals cache with the new data.
+ * @param {Array} newWithdrawals - fresh list from the backend
+ */
+export async function syncWithdrawalNotifications(newWithdrawals) {
+  try {
+    const cached = await getCachedWithdrawals();
+    const cachedMap = {};
+    for (const w of cached) {
+      cachedMap[w.id] = w.status;
+    }
+
+    const database = await getDatabase();
+    for (const w of newWithdrawals) {
+      const prevStatus = cachedMap[w.id];
+      const newStatus  = w.status?.toUpperCase();
+
+      if (prevStatus === 'PENDING' && (newStatus === 'APPROVED' || newStatus === 'REJECTED')) {
+        const grossAmount = Number(w.amount || 0).toFixed(2);
+        const title = newStatus === 'APPROVED'
+          ? 'Withdrawal Approved ✓'
+          : 'Withdrawal Rejected';
+        const body = newStatus === 'APPROVED'
+          ? `Your withdrawal of ${grossAmount} TRY has been approved. The net amount will be transferred to your bank.`
+          : `Your withdrawal of ${grossAmount} TRY was rejected.${
+              w.rejection_reason ? ' Reason: ' + w.rejection_reason : ''
+            }`;
+
+        await database.runAsync(
+          `INSERT OR IGNORE INTO notifications
+            (id, title, body, withdrawal_id, is_read, createdAt)
+           VALUES (?, ?, ?, ?, 0, ?)`,
+          [
+            `notif_${w.id}`, // stable unique id — one notification per withdrawal transition
+            title,
+            body,
+            w.id,
+            new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    // Always refresh the local cache with the latest data
+    await cacheWithdrawals(newWithdrawals);
+  } catch (err) {
+    console.warn('[offlineDb] syncWithdrawalNotifications failed:', err);
+  }
+}
+
+/**
+ * Count unread notifications — used to show/hide the bell badge.
+ * @returns {Promise<number>}
+ */
+export async function getUnreadNotificationCount() {
+  try {
+    const database = await getDatabase();
+    const row = await database.getFirstAsync(
+      'SELECT COUNT(*) as count FROM notifications WHERE is_read = 0'
+    );
+    return row?.count ?? 0;
+  } catch (err) {
+    console.warn('[offlineDb] getUnreadNotificationCount failed:', err);
+    return 0;
+  }
+}
+
+/**
+ * Return all notifications, newest first.
+ * @returns {Promise<Array>}
+ */
+export async function getAllNotifications() {
+  try {
+    const database = await getDatabase();
+    return await database.getAllAsync(
+      'SELECT * FROM notifications ORDER BY createdAt DESC'
+    );
+  } catch (err) {
+    console.warn('[offlineDb] getAllNotifications failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Mark all notifications as read.
+ * Called when the user opens the Notifications screen.
+ */
+export async function markNotificationsRead() {
+  try {
+    const database = await getDatabase();
+    await database.runAsync('UPDATE notifications SET is_read = 1');
+  } catch (err) {
+    console.warn('[offlineDb] markNotificationsRead failed:', err);
   }
 }
