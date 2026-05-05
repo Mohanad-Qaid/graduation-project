@@ -165,7 +165,6 @@ async function runSeeder() {
                 status,
                 registration_country:'TR',
                 registration_city:   city,
-                last_login_ip:       null,
                 createdAt:           faker.date.past({ years: 1 }),
                 updatedAt:           NOW,
             });
@@ -191,7 +190,6 @@ async function runSeeder() {
                 status,
                 registration_country:'TR',
                 registration_city:   city,
-                last_login_ip:       null,
                 createdAt:           faker.date.past({ years: 1 }),
                 updatedAt:           NOW,
             });
@@ -509,11 +507,13 @@ async function runSeeder() {
         const fraudPayload = flaggedTxns.map(txn => {
             const riskScore  = faker.number.int({ min: 45, max: 100 });
             const reviewed   = faker.datatype.boolean({ probability: 0.6 }); // 60% reviewed
+            const ANALYZERS = ['gemini-2.5-pro', 'gemini-2.0-flash', 'heuristic'];
             return {
                 id:             uuidv4(),
                 transaction_id: txn.id,
                 risk_score:     riskScore,
                 reason:         pick(faker, FRAUD_REASONS),
+                analyzed_by:    pick(faker, ANALYZERS),
                 reviewed,
                 reviewed_by:    reviewed ? adminId : null,
                 reviewed_at:    reviewed ? randBetween(faker, txn.createdAt, NOW) : null,

@@ -50,6 +50,7 @@ const transactionsSlice = createSlice({
     fraudFlags: [],
     fraudFlagsMeta: null,
     isLoading: false,
+    loadingFlagId: null,  // tracks which flag's "Mark Reviewed" button is loading
     error: null,
   },
   reducers: {
@@ -83,9 +84,18 @@ const transactionsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
+      .addCase(reviewFraudFlag.pending, (state, action) => {
+        // action.meta.arg is the flagId passed to the thunk
+        state.loadingFlagId = action.meta.arg;
+      })
       .addCase(reviewFraudFlag.fulfilled, (state, action) => {
-        const flag = state.fraudFlags.find((f) => f.id === action.payload);
-        if (flag) flag.reviewed = true;
+        state.loadingFlagId = null;
+        // Filter the flag out immediately so the "Unreviewed Only" list updates
+        // without needing a network round-trip refresh.
+        state.fraudFlags = state.fraudFlags.filter((f) => f.id !== action.payload);
+      })
+      .addCase(reviewFraudFlag.rejected, (state) => {
+        state.loadingFlagId = null;
       });
   },
 });

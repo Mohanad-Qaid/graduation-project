@@ -151,7 +151,7 @@ async function getFraudFlags(req, res, next) {
             limit: parseInt(limit, 10) || 20,
             reviewed: reviewed !== undefined ? reviewed === 'true' : undefined,
         });
-        return sendSuccess(res, { message: 'Fraud flags retrieved.', data: result.flags, meta: result });
+        return sendSuccess(res, { message: 'Fraud flags retrieved.', data: result.fraudFlags, meta: result });
     } catch (err) {
         next(err);
     }

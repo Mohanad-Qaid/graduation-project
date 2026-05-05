@@ -7,7 +7,14 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
-const { encryptIp } = require('../utils/ipEncryption.util');
+
+// Substitutes loopback IPs with a real public IP in development so geoip-lite
+// can resolve a location. Has no effect in production.
+function resolveIp(ip) {
+    if (process.env.NODE_ENV !== 'development') return ip;
+    const loopbacks = ['::1', '127.0.0.1', '::ffff:127.0.0.1'];
+    return loopbacks.includes(ip) ? '8.8.8.8' : ip;
+}
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
@@ -33,7 +40,7 @@ async function register(dto) {
         let registration_country = null;
         let registration_city = null;
         if (registrationIp) {
-            const geo = geoip.lookup(registrationIp);
+            const geo = geoip.lookup(resolveIp(registrationIp));
             if (geo) {
                 registration_country = geo.country || null;
                 registration_city = geo.city || null;
@@ -109,12 +116,6 @@ async function login(dto) {
     const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
     await redisClient.setex(`refresh:${user.id}`, REFRESH_TTL_SECONDS, refreshToken);
 
-    // Best-effort: update last_login_ip (AES-256-GCM encrypted) for impossible-travel fraud detection
-    if (dto.loginIp) {
-        const encryptedIp = encryptIp(dto.loginIp);
-        User.update({ last_login_ip: encryptedIp }, { where: { id: user.id } })
-            .catch((e) => logger.warn('[auth] Failed to update last_login_ip:', e.message));
-    }
 
     return {
         accessToken,

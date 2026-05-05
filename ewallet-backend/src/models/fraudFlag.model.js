@@ -53,6 +53,11 @@ module.exports = (sequelize) => {
                 type: DataTypes.DATE,
                 allowNull: true,
             },
+            // Which engine produced the risk score: 'gemini-2.5-pro', 'gemini-2.0-flash', or 'heuristic'
+            analyzed_by: {
+                type: DataTypes.STRING(30),
+                allowNull: true,
+            },
         },
         {
             tableName: 'fraud_flags',
@@ -62,6 +67,7 @@ module.exports = (sequelize) => {
                 { fields: ['reviewed'] },
                 { fields: ['risk_score'] },
                 { fields: ['reviewed_by'] },
+                { fields: ['analyzed_by'] },
             ],
         }
     );

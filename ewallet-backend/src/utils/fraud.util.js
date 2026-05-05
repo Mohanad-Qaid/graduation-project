@@ -1,20 +1,38 @@
 'use strict';
 
 const geoip = require('geoip-lite');
-const { Op, fn, col, literal } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const { FraudFlag, Transaction, User, Wallet } = require('../models');
 const redisClient = require('../config/redis');
 const logger = require('./logger.util');
-const { assessFraudWithGemini } = require('./geminiFraud.util');
+const { assessFraudWithFallback } = require('./groqFraud.util');
 
 const FRAUD_SCORE_THRESHOLD = parseInt(process.env.FRAUD_SCORE_THRESHOLD, 10) || 70;
-const LARGE_TXN_AMOUNT = parseFloat(process.env.FRAUD_LARGE_TXN_AMOUNT) || 5000;
-const FRAUD_WINDOW_SECS = 3600; // 1 hour
+const LARGE_TXN_AMOUNT      = parseFloat(process.env.FRAUD_LARGE_TXN_AMOUNT) || 5000;
+const FRAUD_WINDOW_SECS     = 3600; // 1 hour
+
+// ─── IP resolver ──────────────────────────────────────────────────────────────
+
+/**
+ * In development, Express always sees ::1 (IPv6 loopback) for local requests.
+ * geoip-lite cannot resolve loopback addresses, so all geo data becomes null.
+ * This helper substitutes a known public IP (Google DNS) so the geo lookup
+ * succeeds during local development and testing.
+ * Has NO effect in production (NODE_ENV !== 'development').
+ *
+ * @param {string} ip
+ * @returns {string}
+ */
+function resolveIp(ip) {
+    if (process.env.NODE_ENV !== 'development') return ip;
+    const loopbacks = ['::1', '127.0.0.1', '::ffff:127.0.0.1'];
+    return loopbacks.includes(ip) ? '8.8.8.8' : ip;
+}
 
 // ─── Heuristic fallback ───────────────────────────────────────────────────────
 
 /**
- * Rule-based scoring used when Gemini is unavailable.
+ * Rule-based scoring used when all Gemini models are unavailable.
  * @param {{ senderWalletId: string, amount: number }} params
  * @returns {Promise<{ score: number, reasons: string[] }>}
  */
@@ -124,9 +142,10 @@ async function buildFraudContext({
     const isFirstTimeTransfer = receiverWalletId ? priorTxn === null : null;
 
     // ── Geolocation (offline, no external API) ───────────────────────────────
+    // resolveIp() substitutes loopback with 8.8.8.8 in dev so geo is never null locally
     let transactionGeo = null;
     if (transactionIp) {
-        const geo = geoip.lookup(transactionIp);
+        const geo = geoip.lookup(resolveIp(transactionIp));
         if (geo) transactionGeo = { country: geo.country, city: geo.city };
     }
 
@@ -180,18 +199,19 @@ async function evaluateAndFlagTransaction({
     amount, transactionType = 'PAYMENT',
     senderBalanceBefore, transactionIp,
 }) {
-    let score, reasons;
+    let score, reasons, analyzedBy;
 
     try {
         // Fetch sender User row for home location + account age
+        // Bug 6 fix: use `as: 'owner'` to match the alias defined in models/index.js
         const senderWallet = await Wallet.findByPk(senderWalletId, {
-            include: [{ association: 'user', attributes: ['id', 'createdAt', 'registration_country', 'registration_city'] }],
+            include: [{ model: User, as: 'owner', attributes: ['id', 'createdAt', 'registration_country', 'registration_city'] }],
         });
-        const senderUser = senderWallet?.user || null;
+        const senderUser = senderWallet?.owner || null;
 
-        const geminiEnabled = process.env.FRAUD_GEMINI_ENABLED !== 'false';
+        const aiEnabled = process.env.FRAUD_AI_ENABLED !== 'false';
 
-        if (geminiEnabled) {
+        if (aiEnabled) {
             const context = await buildFraudContext({
                 senderWalletId, receiverWalletId,
                 amount, transactionType,
@@ -200,32 +220,37 @@ async function evaluateAndFlagTransaction({
             });
 
             try {
-                ({ score, reasons } = await assessFraudWithGemini(context));
-                logger.info(`[fraud] Gemini score=${score} for txn=${transactionId}`);
+                // assessFraudWithFallback tries Pro first, then Flash, then throws
+                ({ score, reasons, analyzedBy } = await assessFraudWithFallback(context));
+                logger.info(`[fraud] score=${score} analyzedBy=${analyzedBy} txn=${transactionId}`);
             } catch (aiErr) {
-                logger.warn(`[fraud] Gemini unavailable, falling back to heuristics: ${aiErr.message}`);
+                logger.warn(`[fraud] Groq AI failed, falling back to heuristics: ${aiErr.message}`);
                 ({ score, reasons } = await computeHeuristicScore({ senderWalletId, amount }));
-                logger.info(`[fraud] Heuristic fallback score=${score} for txn=${transactionId}`);
+                analyzedBy = 'heuristic';
+                logger.info(`[fraud] Heuristic fallback score=${score} txn=${transactionId}`);
             }
         } else {
-            logger.info('[fraud] Gemini disabled (FRAUD_GEMINI_ENABLED=false) — using heuristics');
+            logger.info('[fraud] Groq AI disabled (FRAUD_AI_ENABLED=false) — using heuristics');
             ({ score, reasons } = await computeHeuristicScore({ senderWalletId, amount }));
+            analyzedBy = 'heuristic';
         }
     } catch (err) {
         logger.error(`[fraud] Context build error for txn=${transactionId}: ${err.message}`);
         // Absolute last resort: heuristic with zero context
-        score = parseFloat(amount) >= LARGE_TXN_AMOUNT ? 30 : 0;
-        reasons = score > 0 ? ['Large transaction amount (context error fallback)'] : ['No risk factors detected'];
+        score      = parseFloat(amount) >= LARGE_TXN_AMOUNT ? 30 : 0;
+        reasons    = score > 0 ? ['Large transaction amount (context error fallback)'] : ['No risk factors detected'];
+        analyzedBy = 'heuristic';
     }
 
     if (score >= FRAUD_SCORE_THRESHOLD) {
         await FraudFlag.create({
             transaction_id: transactionId,
-            risk_score: score,
-            reason: reasons.join('; '),
-            reviewed: false,
+            risk_score:     score,
+            reason:         reasons.join('; '),
+            analyzed_by:    analyzedBy,
+            reviewed:       false,
         });
-        logger.warn(`[fraud] Flag created: txn=${transactionId} score=${score}`);
+        logger.warn(`[fraud] Flag created: txn=${transactionId} score=${score} analyzedBy=${analyzedBy}`);
     }
 
     return { score, flagged: score >= FRAUD_SCORE_THRESHOLD };

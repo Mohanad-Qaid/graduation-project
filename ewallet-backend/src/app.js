@@ -11,6 +11,10 @@ const { globalRateLimiter } = require('./middlewares/rateLimiter.middleware');
 
 const app = express();
 
+// Trust the first proxy in front of the server (e.g. nginx, load balancer).
+// This makes req.ip resolve to the real client IP from X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // ─── Security Headers ─────────────────────────────────────────────────────────
 app.use(helmet());
 

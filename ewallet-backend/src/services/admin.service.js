@@ -154,6 +154,11 @@ async function getFraudFlags({ page = 1, limit = 20, reviewed }) {
         limit,
         offset,
         order: [['createdAt', 'DESC']],
+        include: [{
+            model: Transaction,
+            as: 'transaction',
+            attributes: ['id', 'reference_code', 'amount', 'transaction_type', 'createdAt'],
+        }],
     });
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), fraudFlags: rows };
 }

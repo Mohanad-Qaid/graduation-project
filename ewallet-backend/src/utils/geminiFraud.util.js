@@ -3,7 +3,9 @@
 const { GoogleGenAI } = require('@google/genai');
 const logger = require('./logger.util');
 
-const MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-2.5-pro';
+const PRIMARY_MODEL   = process.env.GEMINI_MODEL_ID          || 'gemini-2.5-pro';
+const FALLBACK_MODEL  = process.env.GEMINI_FALLBACK_MODEL_ID || 'gemini-2.0-flash';
+
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert fraud analyst for a digital e-wallet platform operating in Turkey (TRY currency).
@@ -32,19 +34,17 @@ Threat patterns to consider:
 - Unusual hours: Transactions between 00:00–05:00`;
 
 /**
- * Sends the enriched fraud context to Gemini and returns a structured score.
- * This function is intentionally slow-tolerant (no hard timeout) because
- * it is always called in a fire-and-forget pattern AFTER the transaction commits.
- *
- * @param {object} context - The full fraud context object
+ * Call Gemini with a specific model and parse the JSON response.
+ * Throws on any failure (network error, rate limit, bad JSON, wrong shape).
+ * @param {string} modelId
+ * @param {object} context
  * @returns {Promise<{ score: number, reasons: string[] }>}
  */
-async function assessFraudWithGemini(context) {
-    const userPrompt = `Analyze this transaction for fraud risk:
-${JSON.stringify(context, null, 2)}`;
+async function callGemini(modelId, context) {
+    const userPrompt = `Analyze this transaction for fraud risk:\n${JSON.stringify(context, null, 2)}`;
 
     const response = await genAI.models.generateContent({
-        model: MODEL_ID,
+        model: modelId,
         contents: userPrompt,
         config: {
             systemInstruction: SYSTEM_PROMPT,
@@ -68,8 +68,40 @@ ${JSON.stringify(context, null, 2)}`;
         throw new Error(`Gemini response had unexpected shape: ${raw.substring(0, 200)}`);
     }
 
-    logger.info(`[fraud:gemini] score=${parsed.score} model=${MODEL_ID}`);
     return { score: Math.min(100, Math.max(0, Math.round(parsed.score))), reasons: parsed.reasons };
 }
 
-module.exports = { assessFraudWithGemini };
+/**
+ * Assess fraud risk using a 2-tier Gemini fallback strategy:
+ *   1. Try the primary model (gemini-2.5-pro by default)
+ *   2. On any failure, try the fallback model (gemini-2.0-flash by default)
+ *   3. If both fail, throw so the caller can fall back to heuristics
+ *
+ * Returns the score, reasons, AND which model actually answered (analyzedBy).
+ *
+ * @param {object} context - The full fraud context object from buildFraudContext
+ * @returns {Promise<{ score: number, reasons: string[], analyzedBy: string }>}
+ */
+async function assessFraudWithFallback(context) {
+    // ── Attempt 1: Primary model ────────────────────────────────────────────
+    try {
+        const result = await callGemini(PRIMARY_MODEL, context);
+        logger.info(`[fraud:gemini] model=${PRIMARY_MODEL} score=${result.score}`);
+        return { ...result, analyzedBy: PRIMARY_MODEL };
+    } catch (primaryErr) {
+        logger.warn(`[fraud:gemini] Primary model (${PRIMARY_MODEL}) failed: ${primaryErr.message}. Trying fallback…`);
+    }
+
+    // ── Attempt 2: Fallback model ───────────────────────────────────────────
+    try {
+        const result = await callGemini(FALLBACK_MODEL, context);
+        logger.info(`[fraud:gemini] model=${FALLBACK_MODEL} score=${result.score} (fallback)`);
+        return { ...result, analyzedBy: FALLBACK_MODEL };
+    } catch (fallbackErr) {
+        logger.warn(`[fraud:gemini] Fallback model (${FALLBACK_MODEL}) also failed: ${fallbackErr.message}.`);
+        // Re-throw so evaluateAndFlagTransaction falls back to heuristics
+        throw fallbackErr;
+    }
+}
+
+module.exports = { assessFraudWithFallback };

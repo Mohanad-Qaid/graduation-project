@@ -9,7 +9,7 @@ const { Title } = Typography;
 
 const SuspiciousTransactions = () => {
   const dispatch = useDispatch();
-  const { fraudFlags, fraudFlagsMeta, isLoading } = useSelector((state) => state.transactions);
+  const { fraudFlags, fraudFlagsMeta, isLoading, loadingFlagId } = useSelector((state) => state.transactions);
   const [showReviewed, setShowReviewed] = useState(false);
 
   const load = (page = 1, reviewed = showReviewed) => {
@@ -58,8 +58,8 @@ const SuspiciousTransactions = () => {
       dataIndex: 'reason',
       key: 'reason',
       render: (reason) => {
-        // Backend stores pipe-separated reasons
-        const parts = (reason || '').split('|').filter(Boolean);
+        // Backend stores semicolon-separated reasons (joined with '; ')
+        const parts = (reason || '').split('; ').filter(Boolean);
         return (
           <div>
             {parts.map((r, i) => (
@@ -99,6 +99,8 @@ const SuspiciousTransactions = () => {
               type="primary"
               icon={<CheckCircleOutlined />}
               onClick={() => handleReview(record.id)}
+              loading={loadingFlagId === record.id}
+              disabled={loadingFlagId !== null && loadingFlagId !== record.id}
             >
               Mark Reviewed
             </Button>
@@ -118,7 +120,7 @@ const SuspiciousTransactions = () => {
 
       <Alert
         message="Fraud Detection"
-        description="Transactions are scored 0–100 after every payment. Flags are created when the score ≥ threshold (default 70). Triggers: large amount (+30), velocity >5 txn/1h (+40), odd hours 00–05 (+30)."
+        description="Transactions are scored 0–100 by Gemini AI (Pro → Flash fallback) or heuristic rules. Flags are created when the score ≥ 50. Heuristic triggers: large amount ≥5000 TRY (+30), velocity >5 txn/hr (+40), unusual hours 00–05 UTC (+30)."
         type="warning"
         showIcon
         style={{ marginBottom: 16 }}
