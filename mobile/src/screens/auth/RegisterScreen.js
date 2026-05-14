@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,19 +8,56 @@ import {
   StatusBar,
   TouchableOpacity,
 } from 'react-native';
-import { TextInput, Text, Snackbar, SegmentedButtons } from 'react-native-paper';
+import { TextInput, Text, Snackbar, SegmentedButtons, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { register, clearError, clearRegistrationSuccess } from '../../store/slices/authSlice';
+import {
+  register, clearError, clearRegistrationSuccess,
+  sendOTP, verifyEmail, clearOtpState,
+} from '../../store/slices/authSlice';
+import OTPInput from '../../components/OTPInput';
 
 // ─── Design tokens (mirrors DashboardScreen) ─────────────────────────────────
 const PURPLE_DARK = '#1A006B';
 const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 
+const OTP_SECONDS = 180;
+
+// Countdown hook shared with ForgotPasswordScreen
+function useCountdown(startSeconds, active) {
+  const [remaining, setRemaining] = useState(startSeconds);
+  const intervalRef = useRef(null);
+  useEffect(() => {
+    if (!active) { setRemaining(startSeconds); return; }
+    setRemaining(startSeconds);
+    intervalRef.current = setInterval(() => {
+      setRemaining((s) => {
+        if (s <= 1) { clearInterval(intervalRef.current); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [active, startSeconds]);
+  return remaining;
+}
+
 const RegisterScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { isSubmitting: isLoading, error, registrationSuccess } = useSelector((state) => state.auth);
+  const { isSubmitting: isLoading, error, registrationSuccess, otpLoading, otpError, otpSuccess } = useSelector((state) => state.auth);
+
+  // Step 1 = registration form, Step 2 = OTP verify
+  const [step, setStep] = useState(1);
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [otpDigits, setOtpDigits] = useState(Array(6).fill(''));
+  const [otpActive, setOtpActive] = useState(false);
+
+  const countdown = useCountdown(OTP_SECONDS, otpActive);
+  const timerRunning = countdown > 0 && otpActive;
+  const mm = String(Math.floor(countdown / 60)).padStart(2, '0');
+  const ss = String(countdown % 60).padStart(2, '0');
+  const otpCode = otpDigits.join('');
+  const otpComplete = otpCode.length === 6;
 
   const [role, setRole] = useState('CUSTOMER');
   const [firstName, setFirstName] = useState('');
@@ -46,14 +83,34 @@ const RegisterScreen = ({ navigation }) => {
     return () => {
       dispatch(clearError());
       dispatch(clearRegistrationSuccess());
+      dispatch(clearOtpState());
     };
   }, [dispatch]);
 
+  // After registration success → transition to OTP step
   useEffect(() => {
-    if (registrationSuccess) {
-      setTimeout(() => { navigation.navigate('Login'); }, 2000);
+    if (registrationSuccess && step === 1) {
+      const emailSent = email.trim().toLowerCase();
+      setRegisteredEmail(emailSent);
+      dispatch(clearRegistrationSuccess());
+      // Fire the OTP send immediately after registration
+      dispatch(sendOTP({ email: emailSent, purpose: 'verify' })).then(() => {
+        setStep(2);
+        setOtpActive(true);
+      });
     }
-  }, [registrationSuccess, navigation]);
+  }, [registrationSuccess]);
+
+  // After email verified → go to login with snackbar
+  useEffect(() => {
+    if (otpSuccess && step === 2) {
+      const t = setTimeout(() => {
+        dispatch(clearOtpState());
+        navigation.navigate('Login');
+      }, 2000);
+      return () => clearTimeout(t);
+    }
+  }, [otpSuccess]);
 
   const validateForm = () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -104,6 +161,19 @@ const RegisterScreen = ({ navigation }) => {
       payload.business_category = businessCategory;
     }
     dispatch(register(payload));
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpComplete) return;
+    dispatch(verifyEmail({ email: registeredEmail, code: otpCode }));
+  };
+
+  const handleResendOTP = () => {
+    setOtpDigits(Array(6).fill(''));
+    dispatch(clearOtpState());
+    dispatch(sendOTP({ email: registeredEmail, purpose: 'verify', isResend: true }));
+    setOtpActive(false);
+    setTimeout(() => setOtpActive(true), 50);
   };
 
   return (
@@ -322,16 +392,82 @@ const RegisterScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
+      {/* ── STEP 2: Email OTP Verification ─────────────────────────────── */}
+      {step === 2 && (
+        <View style={styles.otpOverlay}>
+          <View style={styles.otpCard}>
+            <Icon name="shield-key-outline" size={36} color={PURPLE_MAIN} style={{ alignSelf: 'center', marginBottom: 12 }} />
+            <Text style={styles.otpTitle}>Verify Your Email</Text>
+            <Text style={styles.otpDesc}>
+              A 6-digit code was sent to{' '}
+              <Text style={styles.otpEmail}>{registeredEmail}</Text>.{' '}
+              Enter it below to complete registration.
+            </Text>
+
+            <OTPInput
+              value={otpDigits}
+              onChange={setOtpDigits}
+              disabled={otpLoading}
+            />
+
+            {/* Timer + Resend */}
+            <View style={styles.otpTimerRow}>
+              <Text style={styles.otpTimerText}>
+                {timerRunning ? `Expires in ${mm}:${ss}` : 'Code expired'}
+              </Text>
+              <TouchableOpacity onPress={handleResendOTP} disabled={otpLoading} activeOpacity={0.7}>
+                <Text style={[styles.resendText, timerRunning && styles.resendTextDimmed]}>
+                  Resend Code
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {(otpError) && (
+              <View style={styles.errorBanner}>
+                <Icon name="alert-circle-outline" size={15} color="#B71C1C" />
+                <Text style={styles.errorBannerText}>{otpError}</Text>
+              </View>
+            )}
+
+            {otpSuccess && (
+              <View style={[styles.errorBanner, { backgroundColor: '#E8F5E9', borderColor: '#A5D6A7' }]}>
+                <Icon name="check-circle-outline" size={15} color="#2E7D32" />
+                <Text style={[styles.errorBannerText, { color: '#2E7D32' }]}>Email verified! Redirecting…</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.submitBtn, (!otpComplete || otpLoading) && styles.submitDisabled]}
+              onPress={handleVerifyOTP}
+              disabled={!otpComplete || otpLoading}
+              activeOpacity={0.85}
+            >
+              {otpLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.submitText}>Verify Email</Text>
+              }
+            </TouchableOpacity>
+
+            <Text style={styles.otpNote}>
+              You can verify later from your profile, but some features may be limited.
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ alignItems: 'center', marginTop: 4 }}>
+              <Text style={styles.linkAccent}>Skip for now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Error is now shown as inline banner — no error Snackbar needed */}
 
       {/* Success snackbar */}
       <Snackbar
-        visible={registrationSuccess}
-        onDismiss={() => dispatch(clearRegistrationSuccess())}
+        visible={false}
+        onDismiss={() => {}}
         duration={2500}
         style={styles.successSnackbar}
       >
-        Registration successful! Awaiting admin approval.
+        Registration successful!
       </Snackbar>
     </KeyboardAvoidingView>
   );
@@ -430,8 +566,38 @@ const styles = StyleSheet.create({
   linkBtn: { alignItems: 'center', marginTop: 18 },
   linkText: { color: '#888', fontSize: 14 },
   linkAccent: { color: PURPLE_MAIN, fontWeight: '700' },
-
   successSnackbar: { backgroundColor: '#4CAF50' },
+
+  /* OTP overlay */
+  otpOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F4F5FB',
+    justifyContent: 'center',
+    padding: 20,
+    zIndex: 99,
+  },
+  otpCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    elevation: 4,
+    shadowColor: PURPLE_MAIN, shadowOpacity: 0.12,
+    shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+  },
+  otpTitle: {
+    textAlign: 'center', fontSize: 18, fontWeight: '800',
+    color: PURPLE_DARK, marginBottom: 8,
+  },
+  otpDesc: { textAlign: 'center', fontSize: 13, color: '#777', lineHeight: 20, marginBottom: 24 },
+  otpEmail: { fontWeight: '700', color: PURPLE_DARK },
+  otpTimerRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginTop: 16, marginBottom: 4,
+  },
+  otpTimerText: { fontSize: 12, color: '#999' },
+  resendText: { fontSize: 13, fontWeight: '700', color: PURPLE_MAIN },
+  resendTextDimmed: { color: '#BBBBBB', fontWeight: '400' },
+  otpNote: { fontSize: 12, color: '#AAA', textAlign: 'center', marginTop: 16, lineHeight: 18 },
 
   /* Phone split field */
   phoneRow: {

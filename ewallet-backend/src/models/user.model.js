@@ -77,6 +77,11 @@ module.exports = (sequelize) => {
                 type: DataTypes.STRING(100),
                 allowNull: true,
             },
+            email_verified: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
+            },
 
         },
         {

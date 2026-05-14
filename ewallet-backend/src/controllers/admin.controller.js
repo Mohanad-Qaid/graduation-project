@@ -64,6 +64,16 @@ async function suspendUser(req, res, next) {
     }
 }
 
+/** PATCH /api/v1/admin/users/:userId/reactivate */
+async function reactivateUser(req, res, next) {
+    try {
+        const user = await adminService.reactivateUser(req.params.userId, req.user.id);
+        return sendSuccess(res, { message: 'User reactivated.', data: user });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
 /** GET /api/v1/admin/transactions */
@@ -212,6 +222,7 @@ module.exports = {
     approveUser,
     rejectUser,
     suspendUser,
+    reactivateUser,
     getAllTransactions,
     listWithdrawals,
     approveWithdrawal,

@@ -17,49 +17,44 @@ import {
 } from '../store/slices/dashboardSlice';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
 // ── Preset helpers ─────────────────────────────────────────────────────────────
 const PRESETS = [
-  { label: 'Today',      value: 'today' },
-  { label: 'This Week',  value: 'week' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
   { label: 'This Month', value: 'month' },
-  { label: 'All Time',   value: 'all' },
+  { label: 'All Time', value: 'all' },
 ];
 
 function getPresetDates(preset) {
   const now = dayjs();
   switch (preset) {
     case 'today': return { startDate: now.startOf('day').toISOString(), endDate: now.endOf('day').toISOString() };
-    case 'week':  return { startDate: now.startOf('week').toISOString(), endDate: now.endOf('week').toISOString() };
+    case 'week': return { startDate: now.startOf('week').toISOString(), endDate: now.endOf('week').toISOString() };
     case 'month': return { startDate: now.startOf('month').toISOString(), endDate: now.endOf('month').toISOString() };
-    default:      return {};
+    default: return {};
   }
 }
-
-/**
- * NOTE: This dashboard currently shows static/aggregated counts from real API endpoints.
- * The transaction volume chart is a static placeholder.
- */
 
 const Dashboard = () => {
   const dispatch = useDispatch();
   const { stats, isLoading, filteredRevenue, revenueLoading } = useSelector((state) => state.dashboard);
 
-  const [preset, setPreset]       = useState('all');
+  const [preset, setPreset] = useState('today');
   const [dateRange, setDateRange] = useState(null);
 
   useEffect(() => {
     dispatch(fetchDashboardStats());
-    dispatch(fetchFilteredRevenue({})); // all-time on load
+    dispatch(fetchFilteredRevenue(getPresetDates('today'))); // today on load
   }, [dispatch]);
 
   const applyFilter = (newPreset, newRange) => {
     if (newRange && newRange[0] && newRange[1]) {
       dispatch(fetchFilteredRevenue({
         startDate: newRange[0].startOf('day').toISOString(),
-        endDate:   newRange[1].endOf('day').toISOString(),
+        endDate: newRange[1].endOf('day').toISOString(),
       }));
     } else {
       dispatch(fetchFilteredRevenue(getPresetDates(newPreset)));
@@ -89,11 +84,18 @@ const Dashboard = () => {
 
   if (isLoading || !stats) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 50 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
         <Spin size="large" />
       </div>
     );
   }
+
+  // ── Bug fix: Status column uses colored Tags ───────────────────────────────
+  const STATUS_COLORS = {
+    COMPLETED: 'success',
+    PENDING: 'warning',
+    FAILED: 'error',
+  };
 
   const recentColumns = [
     {
@@ -106,7 +108,7 @@ const Dashboard = () => {
       title: 'Type',
       dataIndex: 'transaction_type',
       key: 'transaction_type',
-      render: (type) => type || '-',
+      render: (type) => type || '—',
     },
     {
       title: 'Amount',
@@ -118,20 +120,29 @@ const Dashboard = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      render: (status) => (
+        <Tag color={STATUS_COLORS[status] || 'default'}>{status || '—'}</Tag>
+      ),
     },
     {
       title: 'Time',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date) => dayjs(date).format('HH:mm DD/MM'),
+      render: (date) => dayjs(date).format('HH:mm · DD/MM'),
     },
   ];
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>Dashboard Overview</Title>
+      {/* Page header */}
+      <div className="page-header">
+        <h2 className="page-title">Dashboard Overview</h2>
+        <Tag color="purple" style={{ fontSize: 12, padding: '4px 12px', borderRadius: 20 }}>
+          {dayjs().format('dddd, DD MMM YYYY')}
+        </Tag>
+      </div>
 
-
+      {/* ── Stat cards ── */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card className="stat-card">
@@ -173,17 +184,6 @@ const Dashboard = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="stat-card">
-            <Statistic
-              title="Platform Revenue"
-              value={Number(stats.totalRevenue || 0).toFixed(2)}
-              prefix={<DollarCircleOutlined style={{ color: '#388E3C' }} />}
-              suffix="TRY"
-              valueStyle={{ color: '#388E3C', fontWeight: 700 }}
-            />
-          </Card>
-        </Col>
       </Row>
 
       {/* ── Revenue Filter Panel ── */}
@@ -193,7 +193,7 @@ const Dashboard = () => {
             title={
               <Space>
                 <FilterOutlined style={{ color: '#6200EE' }} />
-                <span>Revenue by Date Range</span>
+                <span>Platform Revenue</span>
               </Space>
             }
             extra={

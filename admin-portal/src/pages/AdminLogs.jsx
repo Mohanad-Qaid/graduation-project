@@ -102,18 +102,9 @@ const AdminLogs = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        <FileTextOutlined style={{ marginRight: 8 }} />
-        Admin Activity Logs
-      </Title>
-
-      <Alert
-        message="Read-Only Audit Trail"
-        description="All administrative actions are logged here for security and compliance. Logs cannot be modified or deleted."
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <h2 className="page-title">Admin Activity Logs</h2>
+      </div>
 
       <Card>
         <Table

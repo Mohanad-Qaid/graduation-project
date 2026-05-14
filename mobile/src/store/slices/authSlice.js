@@ -178,6 +178,50 @@ export const wipeDevice = createAsyncThunk('auth/wipeDevice', async () => {
   return null;
 });
 
+// ─── OTP — Send / Resend ─────────────────────────────────────────────────────
+// purpose: 'verify' (after registration) | 'reset' (forgot password)
+export const sendOTP = createAsyncThunk(
+  'auth/sendOTP',
+  async ({ email, purpose, isResend = false }, { rejectWithValue }) => {
+    try {
+      const endpoint = isResend ? '/auth/resend-otp' : '/auth/send-otp';
+      await api.post(endpoint, { email, purpose });
+      return { email, purpose };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to send code. Please try again.';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// ─── OTP — Verify Email (post-registration) ──────────────────────────────────
+export const verifyEmail = createAsyncThunk(
+  'auth/verifyEmail',
+  async ({ email, code }, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/verify-email', { email, code });
+      return true;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Verification failed.';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// ─── OTP — Reset PIN (forgot-password final step) ────────────────────────────
+export const resetPin = createAsyncThunk(
+  'auth/resetPin',
+  async ({ email, code, newPin }, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/reset-password', { email, code, newPin });
+      return true;
+    } catch (error) {
+      const message = error.response?.data?.message || 'PIN reset failed.';
+      return rejectWithValue(message);
+    }
+  }
+);
+
 // ─── Slice ────────────────────────────────────────────────────────────────────
 const authSlice = createSlice({
   name: 'auth',
@@ -197,10 +241,19 @@ const authSlice = createSlice({
     cachedEmail: null,
     cachedFirstName: null,
     cachedLastName: null,
+    // OTP flow state
+    otpLoading: false,
+    otpError: null,
+    otpSuccess: false,   // true = code was accepted / PIN was reset
   },
   reducers: {
     clearError: (state) => { state.error = null; },
     clearRegistrationSuccess: (state) => { state.registrationSuccess = false; },
+    clearOtpState: (state) => {
+      state.otpLoading = false;
+      state.otpError = null;
+      state.otpSuccess = false;
+    },
     lockSession: (state) => {
       if (state.isAuthenticated) state.isSessionLocked = true;
     },
@@ -363,6 +416,52 @@ const authSlice = createSlice({
         state.cachedEmail = null;
         state.cachedFirstName = null;
         state.cachedLastName = null;
+      })
+
+      // ── Send OTP ───────────────────────────────────────────────────────
+      .addCase(sendOTP.pending, (state) => {
+        state.otpLoading = true;
+        state.otpError = null;
+        state.otpSuccess = false;
+      })
+      .addCase(sendOTP.fulfilled, (state) => {
+        state.otpLoading = false;
+      })
+      .addCase(sendOTP.rejected, (state, action) => {
+        state.otpLoading = false;
+        state.otpError = action.payload;
+      })
+
+      // ── Verify Email ───────────────────────────────────────────────────
+      .addCase(verifyEmail.pending, (state) => {
+        state.otpLoading = true;
+        state.otpError = null;
+        state.otpSuccess = false;
+      })
+      .addCase(verifyEmail.fulfilled, (state) => {
+        state.otpLoading = false;
+        state.otpSuccess = true;
+        // Update the in-memory user object to reflect the new verified status
+        if (state.user) state.user = { ...state.user, email_verified: true };
+      })
+      .addCase(verifyEmail.rejected, (state, action) => {
+        state.otpLoading = false;
+        state.otpError = action.payload;
+      })
+
+      // ── Reset PIN ──────────────────────────────────────────────────────
+      .addCase(resetPin.pending, (state) => {
+        state.otpLoading = true;
+        state.otpError = null;
+        state.otpSuccess = false;
+      })
+      .addCase(resetPin.fulfilled, (state) => {
+        state.otpLoading = false;
+        state.otpSuccess = true;
+      })
+      .addCase(resetPin.rejected, (state, action) => {
+        state.otpLoading = false;
+        state.otpError = action.payload;
       });
   },
 });
@@ -370,6 +469,7 @@ const authSlice = createSlice({
 export const {
   clearError,
   clearRegistrationSuccess,
+  clearOtpState,
   lockSession,
   unlockSession,
   incrementFailCount,

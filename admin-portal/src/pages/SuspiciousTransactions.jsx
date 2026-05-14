@@ -113,32 +113,21 @@ const SuspiciousTransactions = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        <WarningOutlined style={{ color: '#F44336', marginRight: 8 }} />
-        Suspicious Activity / Fraud Flags
-      </Title>
-
-      <Alert
-        message="Fraud Detection"
-        description="Transactions are scored 0–100 by Gemini AI (Pro → Flash fallback) or heuristic rules. Flags are created when the score ≥ 50. Heuristic triggers: large amount ≥5000 TRY (+30), velocity >5 txn/hr (+40), unusual hours 00–05 UTC (+30)."
-        type="warning"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <h2 className="page-title">Suspicious Activity</h2>
+      </div>
 
       <Card>
-        <Row style={{ marginBottom: 16 }}>
-          <Col>
-            <Select
-              value={showReviewed}
-              onChange={(v) => setShowReviewed(v)}
-              style={{ width: 180 }}
-            >
-              <Select.Option value={false}>Unreviewed Only</Select.Option>
-              <Select.Option value={true}>Reviewed Only</Select.Option>
-            </Select>
-          </Col>
-        </Row>
+        <div style={{ marginBottom: 16 }}>
+          <Select
+            value={showReviewed}
+            onChange={(v) => setShowReviewed(v)}
+            style={{ width: 180 }}
+          >
+            <Select.Option value={false}>Unreviewed</Select.Option>
+            <Select.Option value={true}>Reviewed</Select.Option>
+          </Select>
+        </div>
 
         <Table
           dataSource={fraudFlags}

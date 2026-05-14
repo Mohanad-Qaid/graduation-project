@@ -24,9 +24,10 @@ router.get('/revenue', controller.getPlatformRevenue);
 // ─── User Management ──────────────────────────────────────────────────────────
 router.get('/users', paginationRules, validate, controller.getAllUsers);
 router.get('/users/pending', controller.getPendingUsers);
-router.patch('/users/:userId/approve', userIdParamRules, validate, controller.approveUser);
-router.patch('/users/:userId/reject', [...userIdParamRules, ...rejectReasonRules], validate, controller.rejectUser);
-router.patch('/users/:userId/suspend', [...userIdParamRules, ...rejectReasonRules], validate, controller.suspendUser);
+router.patch('/users/:userId/approve',     userIdParamRules, validate, controller.approveUser);
+router.patch('/users/:userId/reject',      [...userIdParamRules, ...rejectReasonRules], validate, controller.rejectUser);
+router.patch('/users/:userId/suspend',     [...userIdParamRules, ...rejectReasonRules], validate, controller.suspendUser);
+router.patch('/users/:userId/reactivate',  userIdParamRules, validate, controller.reactivateUser);
 
 // ─── Top-up ───────────────────────────────────────────────────────────────────
 router.post('/users/:userId/topup', adminTopUpRules, validate, controller.adminTopUp);

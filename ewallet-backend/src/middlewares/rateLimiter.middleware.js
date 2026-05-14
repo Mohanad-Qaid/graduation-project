@@ -62,4 +62,12 @@ const paymentRateLimiter = createRateLimiter({
     message: 'Too many payment requests. Slow down.',
 });
 
-module.exports = { globalRateLimiter, authRateLimiter, paymentRateLimiter, createRateLimiter };
+/** OTP send/resend limiter — stricter than auth to prevent email spam */
+const otpRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    prefix: 'rl:otp',
+    message: 'Too many OTP requests. Please wait 15 minutes.',
+});
+
+module.exports = { globalRateLimiter, authRateLimiter, paymentRateLimiter, otpRateLimiter, createRateLimiter };

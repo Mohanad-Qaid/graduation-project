@@ -43,7 +43,7 @@ async function getAllUsers({ page = 1, limit = 50, role, status }) {
         where,
         limit,
         offset,
-        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'createdAt'],
+        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'email_verified', 'createdAt'],
         order: [['createdAt', 'DESC']],
     });
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), users: rows };
@@ -132,6 +132,37 @@ async function suspendUser(targetUserId, adminId, reason) {
         });
 
         await dbTxn.commit();
+        return { id: user.id, email: user.email, status: user.status };
+    } catch (err) {
+        await dbTxn.rollback();
+        throw err;
+    }
+}
+
+/**
+ * Reactivate a suspended (or rejected) user — set status back to APPROVED.
+ */
+async function reactivateUser(targetUserId, adminId) {
+    const dbTxn = await sequelize.transaction();
+    try {
+        const user = await User.findByPk(targetUserId, { transaction: dbTxn });
+        if (!user) throw createHttpError(404, 'User not found.');
+        if (user.role === 'ADMIN') throw createHttpError(403, 'Cannot modify an admin account.');
+        if (user.status === 'APPROVED') throw createHttpError(400, 'User is already active.');
+
+        user.status = 'APPROVED';
+        await user.save({ transaction: dbTxn });
+
+        await logAdminAction({
+            adminId,
+            actionType: 'USER_REACTIVATED',
+            targetUserId,
+            description: `User ${user.email} reactivated by admin.`,
+            dbTxn,
+        });
+
+        await dbTxn.commit();
+        logger.info(`Admin ${adminId} reactivated user ${targetUserId}`);
         return { id: user.id, email: user.email, status: user.status };
     } catch (err) {
         await dbTxn.rollback();
@@ -275,6 +306,7 @@ module.exports = {
     approveUser,
     rejectUser,
     suspendUser,
+    reactivateUser,
     getFraudFlags,
     reviewFraudFlag,
     getAdminLogs,

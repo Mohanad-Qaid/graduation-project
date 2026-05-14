@@ -67,17 +67,14 @@ export const suspendUser = createAsyncThunk(
   }
 );
 
-// TODO (future): Backend does not have a dedicated /activate endpoint.
-// For now, re-approve is used as a workaround — wire up when backend adds it.
 export const activateUser = createAsyncThunk(
   'users/activate',
   async (userId, { rejectWithValue }) => {
     try {
-      // Temporary workaround: re-approve to un-suspend
-      await api.patch(`/admin/users/${userId}/approve`);
+      await api.patch(`/admin/users/${userId}/reactivate`);
       return userId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to activate user');
+      return rejectWithValue(error.response?.data?.message || 'Failed to reactivate user');
     }
   }
 );

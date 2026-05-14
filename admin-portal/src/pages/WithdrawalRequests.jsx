@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Button, Tag, Space, Card, Typography, Modal, Input, message, Empty } from 'antd';
+import { Table, Button, Tag, Space, Card, Modal, Input, message, Empty } from 'antd';
 import { CheckOutlined, CloseOutlined, DollarOutlined } from '@ant-design/icons';
 import {
   fetchPendingWithdrawals,
@@ -9,32 +9,27 @@ import {
 } from '../store/slices/withdrawalsSlice';
 import dayjs from 'dayjs';
 
-const { Title } = Typography;
 const { TextArea } = Input;
 
 const WithdrawalRequests = () => {
   const dispatch = useDispatch();
   const { pending, isLoading } = useSelector((state) => state.withdrawals);
   const [rejectModal, setRejectModal] = useState({ visible: false, withdrawalId: null });
+  const [approveModal, setApproveModal] = useState({ visible: false, withdrawalId: null, amount: null });
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     dispatch(fetchPendingWithdrawals());
   }, [dispatch]);
 
-  const handleApprove = async (withdrawalId) => {
-    Modal.confirm({
-      title: 'Approve Withdrawal',
-      content: 'Confirm approval. A WITHDRAWAL transaction record will be created.',
-      onOk: async () => {
-        try {
-          await dispatch(approveWithdrawal(withdrawalId)).unwrap();
-          message.success('Withdrawal approved successfully');
-        } catch (error) {
-          message.error(error);
-        }
-      },
-    });
+  const handleApprove = async () => {
+    try {
+      await dispatch(approveWithdrawal(approveModal.withdrawalId)).unwrap();
+      message.success('Withdrawal approved successfully');
+      setApproveModal({ visible: false, withdrawalId: null, amount: null });
+    } catch (error) {
+      message.error(error);
+    }
   };
 
   const handleReject = async () => {
@@ -123,7 +118,7 @@ const WithdrawalRequests = () => {
               type="primary"
               icon={<CheckOutlined />}
               size="small"
-              onClick={() => handleApprove(record.id)}
+              onClick={() => setApproveModal({ visible: true, withdrawalId: record.id, amount: record.amount })}
             >
               Approve
             </Button>
@@ -143,7 +138,9 @@ const WithdrawalRequests = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>Withdrawal Requests</Title>
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <h2 className="page-title">Withdrawal Requests</h2>
+      </div>
 
       <Card>
         {pending.length === 0 ? (
@@ -158,6 +155,28 @@ const WithdrawalRequests = () => {
           />
         )}
       </Card>
+
+      {/* Approve Confirmation Modal */}
+      <Modal
+        title={<span style={{ fontWeight: 700 }}>Confirm Approval</span>}
+        open={approveModal.visible}
+        onOk={handleApprove}
+        onCancel={() => setApproveModal({ visible: false, withdrawalId: null, amount: null })}
+        okText="Yes, Approve"
+        cancelText="Cancel"
+        okButtonProps={{ type: 'primary' }}
+      >
+        <p style={{ marginBottom: 8 }}>
+          Approve this withdrawal of{' '}
+          <strong style={{ color: '#6200EE' }}>
+            {Number(approveModal.amount || 0).toFixed(2)} TRY
+          </strong>?
+        </p>
+        <p style={{ color: '#888', fontSize: 13 }}>
+          A <strong>WITHDRAWAL</strong> transaction record will be created and
+          the net amount will be sent to the merchant's IBAN.
+        </p>
+      </Modal>
 
       <Modal
         title="Reject Withdrawal"

@@ -94,6 +94,38 @@ const rejectReasonRules = [
     body('reason').optional().trim().isLength({ max: 500 }),
 ];
 
+// ─── OTP ──────────────────────────────────────────────────────────────────────
+
+const sendOTPRules = [
+    body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
+    body('purpose')
+        .isIn(['verify', 'reset'])
+        .withMessage('Purpose must be "verify" or "reset".'),
+];
+
+const verifyEmailRules = [
+    body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
+    body('code')
+        .trim()
+        .matches(/^\d{6}$/)
+        .withMessage('Code must be exactly 6 digits.'),
+];
+
+const resetPasswordRules = [
+    body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
+    body('code')
+        .trim()
+        .matches(/^\d{6}$/)
+        .withMessage('Code must be exactly 6 digits.'),
+    body('newPin')
+        .matches(/^\d{6}$/)
+        .withMessage('New PIN must be exactly 6 digits.'),
+];
+
+const forgotPasswordRules = [
+    body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
+];
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 const paginationRules = [
@@ -111,4 +143,8 @@ module.exports = {
     adminTopUpRules,
     rejectReasonRules,
     paginationRules,
+    sendOTPRules,
+    verifyEmailRules,
+    resetPasswordRules,
+    forgotPasswordRules,
 };

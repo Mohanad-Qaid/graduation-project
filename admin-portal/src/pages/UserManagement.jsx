@@ -144,6 +144,14 @@ const UserManagement = () => {
       ),
     },
     {
+      title: 'Email',
+      dataIndex: 'email_verified',
+      key: 'email_verified',
+      render: (verified) => verified
+        ? <Tag color="success" icon={<CheckCircleOutlined />}>Verified</Tag>
+        : <Tag color="default">Unverified</Tag>,
+    },
+    {
       title: 'Joined',
       dataIndex: 'createdAt',
       key: 'createdAt',
@@ -165,16 +173,14 @@ const UserManagement = () => {
             </Button>
           )}
           {record.status === 'SUSPENDED' && (
-            <Tooltip title="Temporary — uses approve endpoint. Backend /activate endpoint TBD.">
-              <Button
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                size="small"
-                onClick={() => handleActivate(record.id)}
-              >
-                Re-Activate
-              </Button>
-            </Tooltip>
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              size="small"
+              onClick={() => handleActivate(record.id)}
+            >
+              Reactivate
+            </Button>
           )}
           <Button
             icon={<WalletOutlined />}
@@ -190,7 +196,7 @@ const UserManagement = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>User Management</Title>
+      <h2 className="page-title" style={{ marginBottom: 24 }}>User Management</h2>
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>

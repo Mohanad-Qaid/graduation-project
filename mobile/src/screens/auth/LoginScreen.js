@@ -248,6 +248,14 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkAccent}>Register</Text></Text>
             </TouchableOpacity>
           )}
+
+          {/* Forgot PIN — always shown */}
+          <TouchableOpacity
+            style={styles.forgotLink}
+            onPress={() => navigation.navigate('ForgotPassword')}
+          >
+            <Text style={styles.forgotLinkText}>Forgot PIN?</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -408,6 +416,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   errorBannerText: { flex: 1, color: '#B71C1C', fontSize: 13 },
+
+  /* Forgot PIN link */
+  forgotLink: { alignItems: 'center', marginTop: 14 },
+  forgotLinkText: { color: PURPLE_MAIN, fontSize: 13, fontWeight: '600' },
 });
 
 export default LoginScreen;
