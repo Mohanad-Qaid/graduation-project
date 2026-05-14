@@ -10,8 +10,8 @@ const registerRules = [
     body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
     body('phone')
         .trim()
-        .matches(/^\+?[0-9]{7,20}$/)
-        .withMessage('Valid phone number required (7–20 digits, optional leading +).'),
+        .matches(/^\+90\d{10}$/)
+        .withMessage('Phone must be a valid Turkish number in the format +90XXXXXXXXXX.'),
     body('password')
         .matches(/^\d{6}$/)
         .withMessage('PIN must be exactly 6 digits.'),
@@ -23,6 +23,12 @@ const registerRules = [
         .withMessage('Business name is required for merchants.')
         .isLength({ max: 150 })
         .withMessage('Business name must be at most 150 characters.'),
+    body('business_category')
+        .if(body('role').equals('MERCHANT'))
+        .notEmpty()
+        .withMessage('Business category is required for merchants.')
+        .isIn(['FOOD_AND_DRINK', 'SHOPPING', 'TRANSPORT', 'BILLS_AND_UTILITIES', 'LIFESTYLE'])
+        .withMessage('Business category must be one of: FOOD_AND_DRINK, SHOPPING, TRANSPORT, BILLS_AND_UTILITIES, LIFESTYLE.'),
 ];
 
 const loginRules = [

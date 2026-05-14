@@ -51,6 +51,9 @@ async function requestWithdrawal({ merchantId, amount, bankName, bankAccount, ba
         if (isNaN(grossAmount) || grossAmount < 1000) {
             throw createHttpError(400, 'Minimum withdrawal amount is 1,000 TL.');
         }
+        if (grossAmount > 100000) {
+            throw createHttpError(400, 'Maximum withdrawal amount is 100,000 TRY per request.');
+        }
 
         const balance = parseFloat(wallet.balance);
         if (balance < grossAmount) {

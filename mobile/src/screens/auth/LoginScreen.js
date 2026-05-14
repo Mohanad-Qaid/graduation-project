@@ -40,6 +40,7 @@ const LoginScreen = ({ navigation }) => {
     isSubmitting: isLoading,
     error,
     failCount,
+    isNetworkError,
     cachedEmail,
     cachedFirstName,
     cachedLastName,
@@ -88,11 +89,13 @@ const LoginScreen = ({ navigation }) => {
   const isExperienced = !!cachedEmail;
   const initials = getInitials(cachedFirstName, cachedLastName);
   const fullName = [cachedFirstName, cachedLastName].filter(Boolean).join(' ');
-  const isPending = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
-  const snackbarError = error && !isPending ? error : null;
+  const isPending  = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
+  const isRejected = typeof error === 'string' && error.toLowerCase().includes('rejected');
+  // Snackbar only for errors that don't have a dedicated inline banner
+  const snackbarError = error && !isPending && !isRejected && !isNetworkError ? error : null;
   // Remaining attempts only shown in PIN mode after at least one failure
   const attemptsLeft = MAX_ATTEMPTS - failCount;
-  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS;
+  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS && !isNetworkError;
 
   return (
     <KeyboardAvoidingView
@@ -138,7 +141,18 @@ const LoginScreen = ({ navigation }) => {
         {/* ── Floating form panel ─────────────────────────────────────────── */}
         <View style={styles.panel}>
 
-          {/* Pending banner */}
+          {/* Network error banner — amber, shown for offline/connection failures */}
+          {isNetworkError && !!error && (
+            <View style={styles.networkBanner}>
+              <Icon name="wifi-off" size={18} color="#5d3a00" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.networkTitle}>No Internet Connection</Text>
+                <Text style={styles.networkBody}>{error}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Pending banner — amber, for accounts awaiting approval */}
           {isPending && (
             <View style={styles.pendingBanner}>
               <Icon name="clock-outline" size={18} color="#7c4d00" style={{ marginRight: 8 }} />
@@ -151,7 +165,20 @@ const LoginScreen = ({ navigation }) => {
             </View>
           )}
 
-          {/* Inline PIN error — persistent, clearly visible */}
+          {/* Rejected banner — rose-red, for rejected accounts */}
+          {isRejected && (
+            <View style={styles.rejectedBanner}>
+              <Icon name="account-cancel-outline" size={18} color="#7f1d1d" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rejectedTitle}>Account Not Approved</Text>
+                <Text style={styles.rejectedBody}>
+                  Your registration was not approved. Please contact support for assistance.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Inline PIN error — red, shows attempt countdown */}
           {showAttemptsWarning && (
             <View style={styles.errorBanner}>
               <Icon name="alert-circle-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
@@ -327,7 +354,21 @@ const styles = StyleSheet.create({
   linkText: { color: '#888', fontSize: 14 },
   linkAccent: { color: PURPLE_MAIN, fontWeight: '700' },
 
-  /* Pending banner */
+  /* Network error banner — amber/orange */
+  networkBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  networkTitle: { fontWeight: '700', color: '#5d3a00', fontSize: 13, marginBottom: 3 },
+  networkBody: { color: '#5d3a00', fontSize: 12, lineHeight: 17 },
+
+  /* Pending banner — amber */
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -340,6 +381,20 @@ const styles = StyleSheet.create({
   },
   pendingTitle: { fontWeight: '700', color: '#7c4d00', fontSize: 13, marginBottom: 3 },
   pendingBody: { color: '#7c4d00', fontSize: 12, lineHeight: 17 },
+
+  /* Rejected banner — rose-red */
+  rejectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1,
+    borderColor: '#FDA4AF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  rejectedTitle: { fontWeight: '700', color: '#7f1d1d', fontSize: 13, marginBottom: 3 },
+  rejectedBody: { color: '#7f1d1d', fontSize: 12, lineHeight: 17 },
 
   /* Inline PIN error banner */
   errorBanner: {

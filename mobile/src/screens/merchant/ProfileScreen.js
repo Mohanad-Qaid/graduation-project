@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, Alert,
+  View, StyleSheet, ScrollView, Modal, Pressable,
   TouchableOpacity, StatusBar, Platform, UIManager, LayoutAnimation,
 } from 'react-native';
 import { Text, Divider } from 'react-native-paper';
@@ -16,9 +16,10 @@ const PURPLE_DARK = '#1A006B';
 const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 
-const getInitials = (firstName, lastName, businessName) => {
-  const name = businessName || `${firstName || ''} ${lastName || ''}`.trim();
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+const getInitials = (firstName, lastName) => {
+  const a = (firstName || '')[0] || '';
+  const b = (lastName || '')[0] || '';
+  return (a + b).toUpperCase() || '?';
 };
 
 /* ─── Accordion Item ── */
@@ -45,19 +46,12 @@ const AccordionItem = ({ icon, label, children }) => {
 const ProfileScreen = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
-  const displayName = user?.business_name
-    || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
-    || 'Merchant';
+  const ownerName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || 'Merchant';
+  const businessName = user?.business_name || null;
 
-  const fullName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim();
-
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: () => dispatch(logout()) },
-    ]);
-  };
+  const handleLogout = () => dispatch(logout());
 
   return (
     <View style={styles.root}>
@@ -70,10 +64,14 @@ const ProfileScreen = () => {
           <View style={styles.blob2} />
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
-              {getInitials(user?.first_name, user?.last_name, user?.business_name)}
+              {getInitials(user?.first_name, user?.last_name)}
             </Text>
           </View>
-          <Text style={styles.heroName} numberOfLines={1}>{displayName}</Text>
+          {/* Owner name is primary; business name is shown as subtitle */}
+          <Text style={styles.heroName} numberOfLines={1}>{ownerName}</Text>
+          {businessName && (
+            <Text style={styles.heroSub} numberOfLines={1}>{businessName}</Text>
+          )}
         </View>
 
         {/* ── Single unified card ── */}
@@ -81,12 +79,16 @@ const ProfileScreen = () => {
 
           <AccordionItem icon="store-outline" label="Business Details">
             <View style={styles.formField}>
+              <Text style={styles.formLabel}>Owner Name</Text>
+              <Text style={styles.formValue}>{ownerName}</Text>
+            </View>
+            <View style={styles.formField}>
               <Text style={styles.formLabel}>Business Name</Text>
               <Text style={styles.formValue}>{user?.business_name || '—'}</Text>
             </View>
             <View style={styles.formField}>
-              <Text style={styles.formLabel}>Owner Name</Text>
-              <Text style={styles.formValue}>{fullName || '—'}</Text>
+              <Text style={styles.formLabel}>Business Category</Text>
+              <Text style={styles.formValue}>{user?.business_category || '—'}</Text>
             </View>
             <View style={styles.formField}>
               <Text style={styles.formLabel}>Email Address</Text>
@@ -152,14 +154,57 @@ const ProfileScreen = () => {
 
         </View>
 
-        {/* ── Logout ── */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+        {/* ── Logout button ── */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() => setLogoutModalVisible(true)}
+          activeOpacity={0.85}
+        >
           <Icon name="logout-variant" size={18} color="#EF5350" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* ── Logout Confirmation Modal ── */}
+      <Modal
+        visible={logoutModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setLogoutModalVisible(false)}
+        >
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalIconWrap}>
+              <Icon name="logout-variant" size={28} color={PURPLE_MAIN} />
+            </View>
+            <Text style={styles.modalTitle}>Sign Out?</Text>
+            <Text style={styles.modalSubtitle}>
+              You will remain signed out until you log in again with your PIN or email.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setLogoutModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalLogoutBtn}
+                onPress={() => { setLogoutModalVisible(false); handleLogout(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalLogoutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -190,6 +235,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
   heroName: { color: '#fff', fontSize: 20, fontWeight: '700', maxWidth: '80%' },
+  heroSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 4, maxWidth: '80%' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 22,
@@ -228,6 +274,49 @@ const styles = StyleSheet.create({
     marginHorizontal: 20, borderWidth: 1.5, borderColor: '#EF5350', elevation: 1,
   },
   logoutText: { color: '#EF5350', fontSize: 15, fontWeight: '700' },
+
+  /* Logout confirmation modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+    elevation: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  modalIconWrap: {
+    width: 64, height: 64, borderRadius: 20,
+    backgroundColor: '#EDE7F6',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: PURPLE_DARK, marginBottom: 8 },
+  modalSubtitle: {
+    fontSize: 13, color: '#888', textAlign: 'center', lineHeight: 20, marginBottom: 24,
+  },
+  modalActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  modalCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: '#E0E0E0',
+    alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: '#555' },
+  modalLogoutBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: PURPLE_DARK, alignItems: 'center',
+  },
+  modalLogoutText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
 
 export default ProfileScreen;

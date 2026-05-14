@@ -34,18 +34,26 @@ export const fetchMerchantDashboard = createAsyncThunk(
   'wallet/fetchMerchantDashboard',
   async (_, { rejectWithValue }) => {
     try {
-      // Fetch wallet balance and recent transactions in parallel
-      const [walletRes, txRes] = await Promise.all([
+      // Fetch wallet balance, recent transactions, and withdrawal requests in parallel
+      const [walletRes, txRes, withdrawalRes] = await Promise.all([
         api.get('/merchant/wallet'),
         api.get('/merchant/transactions?limit=5'),
+        api.get('/merchant/withdrawal'),
       ]);
       const wallet = walletRes.data.data;
       const transactions = txRes.data.data ?? [];
+      const withdrawals = withdrawalRes.data.data ?? [];
+
+      // Sum only PENDING withdrawal requests to show locked/in-transit balance
+      const pendingWithdrawal = withdrawals
+        .filter((w) => w.status === 'PENDING')
+        .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+
       return {
         balance: wallet.balance,
         currency: wallet.currency,
         merchantStats: {
-          pendingWithdrawal: 0,
+          pendingWithdrawal,
           todayRevenue: { total: 0, count: 0 },
           weekRevenue: { total: 0, count: 0 },
           recentTransactions: transactions.map((tx) => ({

@@ -24,12 +24,13 @@ const RequestWithdrawalScreen = ({ navigation }) => {
 
     const [amount, setAmount]                 = useState('');
     const [bankName, setBankName]             = useState('');
-    const [bankAccount, setBankAccount]       = useState('');
+    const [ibanDigits, setIbanDigits]         = useState(''); // 24 digits; TR is static prefix
     const [bankAccountName, setBankAccountName] = useState('');
     const [fieldError, setFieldError]         = useState('');
 
     // Derived fee values — recomputed on every amount keystroke
-    const parsedAmount  = parseFloat(amount);
+    // Normalize comma-as-decimal-separator before parsing (e.g. "1000,50" → 1000.50)
+    const parsedAmount  = parseFloat((amount || '').replace(',', '.'));
     const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
     const feeAmount     = isValidAmount ? (parsedAmount * FEE_RATE).toFixed(2) : null;
     const netAmount     = isValidAmount ? (parsedAmount - parseFloat(feeAmount)).toFixed(2) : null;
@@ -50,7 +51,7 @@ const RequestWithdrawalScreen = ({ navigation }) => {
         setFieldError('');
 
         // Presence checks
-        if (!amount || !bankName.trim() || !bankAccount.trim() || !bankAccountName.trim()) {
+        if (!amount || !bankName.trim() || !ibanDigits || !bankAccountName.trim()) {
             setFieldError('Please fill in all fields.');
             return;
         }
@@ -69,14 +70,12 @@ const RequestWithdrawalScreen = ({ navigation }) => {
             return;
         }
 
-        // IBAN validation — strip spaces and uppercase before checking
-        const ibanClean = bankAccount.replace(/\s/g, '').toUpperCase();
-        if (!TURKISH_IBAN_REGEX.test(ibanClean)) {
-            setFieldError(
-                'Invalid IBAN. A Turkish IBAN must start with "TR" followed by exactly 24 digits (26 characters total).'
-            );
+        // IBAN validation — TR prefix is static; validate the 24 digits
+        if (ibanDigits.length !== 24) {
+            setFieldError('IBAN must be exactly 24 digits after the TR prefix.');
             return;
         }
+        const ibanClean = `TR${ibanDigits}`;
 
         dispatch(requestWithdrawal({
             amount: parsedAmount,
@@ -179,19 +178,23 @@ const RequestWithdrawalScreen = ({ navigation }) => {
                         placeholder="Full name as on the account"
                     />
 
-                    <TextInput
-                        label="IBAN"
-                        value={bankAccount}
-                        onChangeText={(v) => { setBankAccount(v); setFieldError(''); }}
-                        style={styles.input}
-                        mode="outlined"
-                        outlineColor="#E0E0E0"
-                        activeOutlineColor={PURPLE_MAIN}
-                        left={<TextInput.Icon icon="card-account-details-outline" color={PURPLE_MAIN} />}
-                        placeholder="TR00 0000 0000 0000 0000 0000 00"
-                        autoCapitalize="characters"
-                    />
-                    <Text style={styles.ibanHint}>Turkish IBAN: TR + 24 digits (26 characters total)</Text>
+                    <Text style={styles.ibanLabel}>IBAN</Text>
+                    <View style={styles.ibanRow}>
+                        <View style={styles.ibanPrefix}>
+                            <Text style={styles.ibanPrefixText}>TR</Text>
+                        </View>
+                        <TextInput
+                            value={ibanDigits}
+                            onChangeText={(v) => { setIbanDigits(v.replace(/\D/g, '').slice(0, 24)); setFieldError(''); }}
+                            keyboardType="numeric"
+                            maxLength={24}
+                            style={styles.ibanInput}
+                            mode="outlined"
+                            outlineColor="#E0E0E0"
+                            activeOutlineColor={PURPLE_MAIN}
+                            placeholder="24 digits"
+                        />
+                    </View>
 
                     <TouchableOpacity
                         style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
@@ -319,6 +322,20 @@ const styles = StyleSheet.create({
     },
     infoIcon: { marginTop: 2, marginRight: 10 },
     infoText: { flex: 1, color: '#1565C0', fontSize: 13, lineHeight: 20 },
+
+    /* IBAN split field */
+    ibanLabel: { fontSize: 12, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 4 },
+    ibanRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    ibanPrefix: {
+        backgroundColor: '#EDE7F6',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        height: 56,
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    ibanPrefixText: { color: PURPLE_MAIN, fontWeight: '800', fontSize: 15 },
+    ibanInput: { flex: 1, backgroundColor: '#fff' },
 });
 
 export default RequestWithdrawalScreen;

@@ -26,10 +26,11 @@ const RegisterScreen = ({ navigation }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState(''); // 10 digits only; +90 is static
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [businessCategory, setBusinessCategory] = useState('');
   const [validationError, setValidationError] = useState('');
 
   // Combined error — shows server error OR local validation error
@@ -63,8 +64,8 @@ const RegisterScreen = ({ navigation }) => {
       setValidationError('Email is required.');
       return false;
     }
-    if (!phone.trim()) {
-      setValidationError('Phone number is required.');
+    if (phoneDigits.length !== 10) {
+      setValidationError('Phone number must be exactly 10 digits (after +90).');
       return false;
     }
     if (!/^\d{6}$/.test(pin)) {
@@ -79,21 +80,29 @@ const RegisterScreen = ({ navigation }) => {
       setValidationError('Business name is required for merchants.');
       return false;
     }
+    if (role === 'MERCHANT' && !businessCategory) {
+      setValidationError('Please select a business category.');
+      return false;
+    }
     setValidationError('');
     return true;
   };
 
   const handleRegister = () => {
     if (!validateForm()) return;
+    const fullPhone = `+90${phoneDigits}`;
     const payload = {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.trim(),
-      phone: phone.trim(),
+      phone: fullPhone,
       password: pin,
       role,
     };
-    if (role === 'MERCHANT') payload.business_name = businessName.trim();
+    if (role === 'MERCHANT') {
+      payload.business_name = businessName.trim();
+      payload.business_category = businessCategory;
+    }
     dispatch(register(payload));
   };
 
@@ -197,29 +206,70 @@ const RegisterScreen = ({ navigation }) => {
             left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
           />
 
-          <TextInput
-            label="Phone *"
-            value={phone}
-            onChangeText={(v) => { setPhone(v); clearErrors(); }}
-            mode="outlined"
-            keyboardType="phone-pad"
-            style={styles.input}
-            activeOutlineColor={PURPLE_MAIN}
-            outlineColor="#DDD"
-            left={<TextInput.Icon icon="phone-outline" color={PURPLE_MAIN} />}
-          />
-
-          {role === 'MERCHANT' && (
+          {/* Phone — split field: static +90 prefix + 10-digit input */}
+          <Text style={styles.fieldLabel}>Phone Number *</Text>
+          <View style={styles.phoneRow}>
+            <View style={styles.phonePrefix}>
+              <Icon name="phone-outline" size={16} color={PURPLE_MAIN} style={{ marginRight: 6 }} />
+              <Text style={styles.phonePrefixText}>+90</Text>
+            </View>
             <TextInput
-              label="Business Name *"
-              value={businessName}
-              onChangeText={(v) => { setBusinessName(v); clearErrors(); }}
+              value={phoneDigits}
+              onChangeText={(v) => {
+                setPhoneDigits(v.replace(/\D/g, '').slice(0, 10));
+                clearErrors();
+              }}
               mode="outlined"
-              style={styles.input}
+              keyboardType="numeric"
+              maxLength={10}
+              placeholder="5XXXXXXXXX"
+              style={styles.phoneInput}
               activeOutlineColor={PURPLE_MAIN}
               outlineColor="#DDD"
-              left={<TextInput.Icon icon="store-outline" color={PURPLE_MAIN} />}
             />
+          </View>
+
+          {role === 'MERCHANT' && (
+            <>
+              <TextInput
+                label="Business Name *"
+                value={businessName}
+                onChangeText={(v) => { setBusinessName(v); clearErrors(); }}
+                mode="outlined"
+                style={styles.input}
+                activeOutlineColor={PURPLE_MAIN}
+                outlineColor="#DDD"
+                left={<TextInput.Icon icon="store-outline" color={PURPLE_MAIN} />}
+              />
+              {/* Business category chips */}
+              <Text style={[styles.fieldLabel, { marginTop: 4 }]}>Business Category *</Text>
+              <View style={styles.categoryRow}>
+                {[
+                  { value: 'FOOD_AND_DRINK',      label: '🍔 Food & Drink' },
+                  { value: 'SHOPPING',             label: '🛍 Shopping' },
+                  { value: 'TRANSPORT',            label: '🚗 Transport' },
+                  { value: 'BILLS_AND_UTILITIES',  label: '⚡ Bills' },
+                  { value: 'LIFESTYLE',            label: '✨ Lifestyle' },
+                ].map((cat) => (
+                  <TouchableOpacity
+                    key={cat.value}
+                    style={[
+                      styles.categoryChip,
+                      businessCategory === cat.value && styles.categoryChipActive,
+                    ]}
+                    onPress={() => { setBusinessCategory(cat.value); clearErrors(); }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[
+                      styles.categoryChipText,
+                      businessCategory === cat.value && styles.categoryChipTextActive,
+                    ]}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
           )}
 
           <TextInput
@@ -382,6 +432,60 @@ const styles = StyleSheet.create({
   linkAccent: { color: PURPLE_MAIN, fontWeight: '700' },
 
   successSnackbar: { backgroundColor: '#4CAF50' },
+
+  /* Phone split field */
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  phonePrefix: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EDE7F6',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    marginRight: 8,
+    height: 56,
+  },
+  phonePrefixText: {
+    color: PURPLE_MAIN,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+
+  /* Business category chips */
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#D0C4F0',
+    backgroundColor: '#F3F0FF',
+  },
+  categoryChipActive: {
+    backgroundColor: PURPLE_DARK,
+    borderColor: PURPLE_DARK,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: PURPLE_MAIN,
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+  },
 });
 
 export default RegisterScreen;

@@ -16,6 +16,15 @@ const logger = require('../utils/logger.util');
  * @returns {object} transaction record
  */
 async function topUpWallet({ userId, amount, description, transactionIp }) {
+    // ── Deposit limits ──────────────────────────────────────────────────────
+    const parsedAmount = parseFloat(amount);
+    if (parsedAmount < 100) {
+        throw createHttpError(400, 'Minimum deposit amount is 100 TRY.');
+    }
+    if (parsedAmount > 50000) {
+        throw createHttpError(400, 'Maximum deposit amount is 50,000 TRY per transaction.');
+    }
+
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 

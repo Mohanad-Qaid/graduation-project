@@ -3,7 +3,7 @@
 const bcrypt = require('bcrypt');
 const geoip = require('geoip-lite');
 const { User, Wallet, sequelize } = require('../models');
-const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt.util');
+const { generateAccessToken, generateRefreshToken, generateAdminAccessToken, generateAdminRefreshToken, verifyRefreshToken } = require('../utils/jwt.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
@@ -26,7 +26,7 @@ const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
  * @param {object} dto - { first_name, last_name, email, phone, password, role, business_name?, registrationIp? }
  */
 async function register(dto) {
-    const { first_name, last_name, email, phone, password, role, business_name, registrationIp } = dto;
+    const { first_name, last_name, email, phone, password, role, business_name, business_category, registrationIp } = dto;
 
     if (role === 'ADMIN') {
         throw createHttpError(403, 'Cannot self-register as ADMIN.');
@@ -49,8 +49,16 @@ async function register(dto) {
 
         const user = await User.create(
             {
-                first_name, last_name, business_name: business_name || null, email, phone, password_hash, role,
-                registration_country, registration_city
+                first_name,
+                last_name,
+                business_name: business_name || null,
+                business_category: role === 'MERCHANT' ? (business_category || null) : null,
+                email,
+                phone,
+                password_hash,
+                role,
+                registration_country,
+                registration_city,
             },
             { transaction: dbTxn }
         );
@@ -109,11 +117,13 @@ async function login(dto) {
     }
 
     // Only APPROVED users reach this point — generate tokens
+    // Admin logins get shorter-lived tokens (web session, not persistent mobile)
+    const isAdmin = dto.isAdmin === true || user.role === 'ADMIN';
     const payload = { id: user.id, role: user.role, status: user.status };
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken({ id: user.id });
+    const accessToken  = isAdmin ? generateAdminAccessToken(payload)  : generateAccessToken(payload);
+    const refreshToken = isAdmin ? generateAdminRefreshToken({ id: user.id }) : generateRefreshToken({ id: user.id });
 
-    const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
+    const REFRESH_TTL_SECONDS = isAdmin ? 8 * 60 * 60 : 7 * 24 * 60 * 60;
     await redisClient.setex(`refresh:${user.id}`, REFRESH_TTL_SECONDS, refreshToken);
 
 

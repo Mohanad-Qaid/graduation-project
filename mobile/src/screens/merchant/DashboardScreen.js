@@ -13,8 +13,8 @@ const PURPLE_DARK = '#1A006B';
 const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 
-const getInitials = (name = '') =>
-  name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+const getInitials = (firstName = '', lastName = '') =>
+  ((firstName[0] || '') + (lastName[0] || '')).toUpperCase() || '?';
 
 /* ─── Quick Action Button ── */
 const QuickAction = ({ icon, label, color, bg, onPress }) => (
@@ -68,9 +68,8 @@ const MerchantDashboard = ({ navigation }) => {
 
   const fmt = (amount) => `${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'TRY'}`;
 
-  const displayName = user?.business_name
-    || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
-    || 'Merchant';
+  // Always show owner's personal name in greeting — business name is on the Profile page
+  const ownerName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || 'Merchant';
 
   return (
     <View style={styles.root}>
@@ -86,9 +85,9 @@ const MerchantDashboard = ({ navigation }) => {
 
           {/* top bar */}
           <View style={styles.heroTop}>
-            <View>
+            <View style={styles.greetBlock}>
               <Text style={styles.greetSmall}>Hello,</Text>
-              <Text style={styles.greetName} numberOfLines={1}>{displayName}</Text>
+              <Text style={styles.greetName} numberOfLines={1}>{ownerName}</Text>
             </View>
             <View style={styles.heroTopRight}>
               {/* Bell notification button */}
@@ -105,9 +104,16 @@ const MerchantDashboard = ({ navigation }) => {
                   </View>
                 )}
               </TouchableOpacity>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
-              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Profile')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>
+                    {getInitials(user?.first_name, user?.last_name)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -268,7 +274,8 @@ const styles = StyleSheet.create({
   },
   bellBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   greetSmall: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  greetName: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2, maxWidth: '80%' },
+  greetBlock: { flex: 1, marginRight: 12 },
+  greetName: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 },
   avatarCircle: {
     width: 46, height: 46, borderRadius: 23,
     backgroundColor: 'rgba(255,255,255,0.2)',

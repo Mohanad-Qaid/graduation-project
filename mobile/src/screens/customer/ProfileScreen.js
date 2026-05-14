@@ -3,7 +3,8 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
+  Modal,
+  Pressable,
   TouchableOpacity,
   StatusBar,
   Platform,
@@ -57,15 +58,11 @@ const ProfileScreen = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
-  // Backend returns: first_name, last_name, email, phone, role, status, business_name
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+
   const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: () => dispatch(logout()) },
-    ]);
-  };
+  const handleLogout = () => dispatch(logout());
 
   return (
     <View style={styles.root}>
@@ -156,14 +153,54 @@ const ProfileScreen = () => {
 
         </View>
 
-        {/* ── Logout ── */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+        {/* ── Logout button ── */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() => setLogoutModalVisible(true)}
+          activeOpacity={0.85}
+        >
           <Icon name="logout-variant" size={18} color="#EF5350" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* ── Logout Confirmation Modal ── */}
+      <Modal
+        visible={logoutModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setLogoutModalVisible(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalIconWrap}>
+              <Icon name="logout-variant" size={28} color={PURPLE_MAIN} />
+            </View>
+            <Text style={styles.modalTitle}>Sign Out?</Text>
+            <Text style={styles.modalSubtitle}>
+              You will be signed out. You can sign back in with your PIN or email anytime.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setLogoutModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalLogoutBtn}
+                onPress={() => { setLogoutModalVisible(false); handleLogout(); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalLogoutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -241,6 +278,38 @@ const styles = StyleSheet.create({
     marginHorizontal: 20, borderWidth: 1.5, borderColor: '#EF5350', elevation: 1,
   },
   logoutText: { color: '#EF5350', fontSize: 15, fontWeight: '700' },
+
+  /* Logout confirmation modal */
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#fff', borderRadius: 24, padding: 28,
+    width: '100%', alignItems: 'center',
+    elevation: 16, shadowColor: '#000', shadowOpacity: 0.2,
+    shadowRadius: 16, shadowOffset: { width: 0, height: 8 },
+  },
+  modalIconWrap: {
+    width: 64, height: 64, borderRadius: 20,
+    backgroundColor: '#EDE7F6',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+  },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: PURPLE_DARK, marginBottom: 8 },
+  modalSubtitle: {
+    fontSize: 13, color: '#888', textAlign: 'center', lineHeight: 20, marginBottom: 24,
+  },
+  modalActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  modalCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: '#555' },
+  modalLogoutBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: PURPLE_DARK, alignItems: 'center',
+  },
+  modalLogoutText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
 
 export default ProfileScreen;

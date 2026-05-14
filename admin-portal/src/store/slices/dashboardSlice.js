@@ -37,14 +37,45 @@ export const fetchDashboardStats = createAsyncThunk(
   }
 );
 
+/**
+ * Fetch revenue filtered by an optional date range.
+ * Calls GET /admin/revenue?startDate=&endDate=
+ * If no params passed, returns all-time revenue.
+ *
+ * @param {{ startDate?: string, endDate?: string, preset?: string }} params
+ */
+export const fetchFilteredRevenue = createAsyncThunk(
+  'dashboard/fetchFilteredRevenue',
+  async ({ startDate, endDate } = {}, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate)   params.endDate   = endDate;
+      const res = await api.get('/admin/revenue', { params });
+      return res.data.data; // { totalRevenue, count, startDate, endDate }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch revenue');
+    }
+  }
+);
+
 const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState: {
     stats: null,
     isLoading: false,
     error: null,
+    // Revenue filter state
+    filteredRevenue: null,   // { totalRevenue, count, startDate, endDate }
+    revenueLoading: false,
+    revenueError: null,
   },
-  reducers: {},
+  reducers: {
+    clearFilteredRevenue: (state) => {
+      state.filteredRevenue = null;
+      state.revenueError = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchDashboardStats.pending, (state) => {
@@ -57,8 +88,22 @@ const dashboardSlice = createSlice({
       .addCase(fetchDashboardStats.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+      // Revenue filter
+      .addCase(fetchFilteredRevenue.pending, (state) => {
+        state.revenueLoading = true;
+        state.revenueError = null;
+      })
+      .addCase(fetchFilteredRevenue.fulfilled, (state, action) => {
+        state.revenueLoading = false;
+        state.filteredRevenue = action.payload;
+      })
+      .addCase(fetchFilteredRevenue.rejected, (state, action) => {
+        state.revenueLoading = false;
+        state.revenueError = action.payload;
       });
   },
 });
 
+export const { clearFilteredRevenue } = dashboardSlice.actions;
 export default dashboardSlice.reducer;

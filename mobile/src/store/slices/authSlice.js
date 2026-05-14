@@ -53,9 +53,11 @@ export const login = createAsyncThunk(
 
       return { token: accessToken, user };
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Login failed. Check your credentials.'
-      );
+      const isNetworkError = !error.response;
+      const message = isNetworkError
+        ? 'No Internet Connection. Please check your connection and try again.'
+        : error.response?.data?.message || 'Login failed. Check your credentials.';
+      return rejectWithValue({ message, isNetworkError });
     }
   }
 );
@@ -87,9 +89,9 @@ export const pinLogin = createAsyncThunk(
     } catch (error) {
       const isNetworkError = !error.response;
       const message = isNetworkError
-        ? 'Please check your internet connection.'
+        ? 'No Internet Connection. Please check your connection and try again.'
         : error.response?.data?.message || 'Incorrect PIN. Please try again.';
-      return rejectWithValue(message);
+      return rejectWithValue({ message, isNetworkError });
     }
   }
 );
@@ -189,6 +191,7 @@ const authSlice = createSlice({
     registrationSuccess: false,
     isSessionLocked: false,
     failCount: 0,
+    isNetworkError: false,
     isOffline: false,
     // Device registration (from AsyncStorage — reliable on Expo Go)
     cachedEmail: null,
@@ -229,19 +232,23 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.isSubmitting = false;
-        state.error = action.payload;
+        const payload = action.payload;
+        state.error = payload?.message ?? payload ?? 'An error occurred.';
+        state.isNetworkError = payload?.isNetworkError ?? false;
       })
 
       // ── PIN Login ──────────────────────────────────────────────────────
       .addCase(pinLogin.pending, (state) => {
         state.isSubmitting = true;
         state.error = null;
+        state.isNetworkError = false;
       })
       .addCase(pinLogin.fulfilled, (state, action) => {
         state.isSubmitting = false;
         state.isAuthenticated = true;
         state.isSessionLocked = false;
         state.failCount = 0;
+        state.isNetworkError = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
         const u = action.payload.user;
@@ -251,8 +258,15 @@ const authSlice = createSlice({
       })
       .addCase(pinLogin.rejected, (state, action) => {
         state.isSubmitting = false;
-        state.failCount += 1;
-        state.error = action.payload;
+        // Extract structured payload — supports both legacy string and new object form
+        const payload = action.payload;
+        const isNetErr = payload?.isNetworkError ?? false;
+        state.error = payload?.message ?? payload ?? 'An error occurred.';
+        state.isNetworkError = isNetErr;
+        // Only real wrong PINs consume an attempt — network errors do NOT
+        if (!isNetErr) {
+          state.failCount += 1;
+        }
       })
 
       // ── Register ───────────────────────────────────────────────────────

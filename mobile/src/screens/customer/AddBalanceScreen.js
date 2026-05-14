@@ -48,7 +48,8 @@ const AddBalanceScreen = ({ navigation }) => {
   }, [dispatch]);
 
   const handleTopUp = async () => {
-    const numAmount = parseFloat(amount);
+    // Normalize comma as decimal separator (e.g. "1000,50" → 1000.50)
+    const numAmount = parseFloat((amount || '').replace(',', '.'));
     if (isNaN(numAmount) || numAmount <= 0) return;
 
     setLocalError(null);
@@ -88,7 +89,7 @@ const AddBalanceScreen = ({ navigation }) => {
   };
 
   const loading = isLoading || isPaymentLoading;
-  const disabled = loading || !amount || parseFloat(amount) <= 0;
+  const disabled = loading || !amount || parseFloat((amount || '').replace(',', '.')) <= 0;
 
   return (
     <KeyboardAvoidingView

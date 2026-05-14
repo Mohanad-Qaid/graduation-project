@@ -31,7 +31,7 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
         attributes: [
             'id', 'sender_wallet_id', 'receiver_wallet_id',
             'amount', 'transaction_type', 'status',
-            'reference_code', 'description', 'category', 'createdAt',
+            'reference_code', 'description', 'category', 'counterparty', 'createdAt',
         ],
         include: [
             {
@@ -58,6 +58,10 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
         let counterparty = 'System';
         if (plainTx.transaction_type === 'TOPUP') {
             counterparty = 'Deposit';
+        } else if (plainTx.transaction_type === 'WITHDRAWAL') {
+            // WITHDRAWAL has receiver_wallet_id = null — the bank account holder name
+            // is stored directly in the counterparty column by the withdrawal service.
+            counterparty = plainTx.counterparty || 'Bank Transfer';
         } else {
             const otherWallet = isOutgoing ? plainTx.receiverWallet : plainTx.senderWallet;
             if (otherWallet && otherWallet.owner) {
