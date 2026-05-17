@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Card, Typography, Tag, Select, DatePicker, Row, Col } from 'antd';
+import { Table, Card, Typography, Tag, Select, DatePicker, Row, Col, InputNumber } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
 import { fetchTransactions } from '../store/slices/transactionsSlice';
 import dayjs from 'dayjs';
@@ -22,6 +22,8 @@ const Transactions = () => {
     status: null,
     startDate: null,
     endDate: null,
+    minAmount: null,
+    maxAmount: null,
     page: 1,
   });
 
@@ -31,6 +33,8 @@ const Transactions = () => {
     if (filters.status) params.status = filters.status;
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.minAmount !== null && filters.minAmount !== '') params.minAmount = filters.minAmount;
+    if (filters.maxAmount !== null && filters.maxAmount !== '') params.maxAmount = filters.maxAmount;
     dispatch(fetchTransactions(params));
   }, [dispatch, filters]);
 
@@ -124,7 +128,7 @@ const Transactions = () => {
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={5}>
+          <Col xs={24} sm={12} md={4}>
             <Select
               placeholder="Type"
               value={filters.type}
@@ -137,7 +141,7 @@ const Transactions = () => {
               <Select.Option value="WITHDRAWAL">Withdrawal</Select.Option>
             </Select>
           </Col>
-          <Col xs={24} sm={12} md={5}>
+          <Col xs={24} sm={12} md={4}>
             <Select
               placeholder="Status"
               value={filters.status}
@@ -150,8 +154,28 @@ const Transactions = () => {
               <Select.Option value="FAILED">Failed</Select.Option>
             </Select>
           </Col>
-          <Col xs={24} sm={24} md={10}>
+          <Col xs={24} sm={24} md={8}>
             <RangePicker onChange={handleDateChange} style={{ width: '100%' }} />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <InputNumber
+              placeholder="Min Amount"
+              min={0}
+              value={filters.minAmount}
+              onChange={(value) => setFilters({ ...filters, minAmount: value, page: 1 })}
+              style={{ width: '100%' }}
+              prefix="₺"
+            />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <InputNumber
+              placeholder="Max Amount"
+              min={0}
+              value={filters.maxAmount}
+              onChange={(value) => setFilters({ ...filters, maxAmount: value, page: 1 })}
+              style={{ width: '100%' }}
+              prefix="₺"
+            />
           </Col>
         </Row>
       </Card>

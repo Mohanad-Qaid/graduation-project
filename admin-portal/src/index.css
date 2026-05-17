@@ -221,25 +221,30 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 14px 6px 6px;
-  border-radius: 99px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
   cursor: pointer;
   transition: all 0.18s;
 }
 
 .header-admin-chip:hover {
-  border-color: var(--accent);
   background: var(--accent-glow);
 }
 
 .header-avatar {
-  width: 30px !important;
-  height: 30px !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  border-radius: 50% !important;
   background: var(--accent) !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0;
 }
 
 .header-admin-name {
@@ -448,26 +453,34 @@ body {
   pointer-events: none;
 }
 
-.login-left {
+.login-center {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 60px;
+  padding: 40px 20px;
   position: relative;
   z-index: 1;
 }
 
-.login-brand {
+.login-card-wrapper {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.login-brand-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 14px;
-  margin-bottom: 56px;
 }
 
 .login-brand-icon {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 14px;
   background: var(--accent);
   display: flex;
@@ -478,7 +491,7 @@ body {
 
 .login-brand-title {
   color: #fff;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.3px;
 }
@@ -491,33 +504,13 @@ body {
   text-transform: uppercase;
 }
 
-.login-headline {
-  color: #ffffff;
-  font-size: 42px;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 16px;
-}
-
-.login-headline span {
-  color: #C4B5FD;
-}
-
-.login-subline {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 15px;
-  line-height: 1.6;
-  max-width: 400px;
-}
-
-.login-right {
-  width: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  position: relative;
-  z-index: 1;
+.login-glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 52px 48px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
 }
 
 .login-card {
@@ -536,7 +529,7 @@ body {
 
 .login-card-title {
   color: #ffffff !important;
-  font-size: 22px !important;
+  font-size: 28px !important;
   font-weight: 700 !important;
   margin-bottom: 4px !important;
 }

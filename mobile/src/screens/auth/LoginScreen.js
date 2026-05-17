@@ -40,7 +40,6 @@ const LoginScreen = ({ navigation }) => {
     isSubmitting: isLoading,
     error,
     failCount,
-    isNetworkError,
     cachedEmail,
     cachedFirstName,
     cachedLastName,
@@ -92,10 +91,10 @@ const LoginScreen = ({ navigation }) => {
   const isPending  = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
   const isRejected = typeof error === 'string' && error.toLowerCase().includes('rejected');
   // Snackbar only for errors that don't have a dedicated inline banner
-  const snackbarError = error && !isPending && !isRejected && !isNetworkError ? error : null;
+  const snackbarError = error && !isPending && !isRejected ? error : null;
   // Remaining attempts only shown in PIN mode after at least one failure
   const attemptsLeft = MAX_ATTEMPTS - failCount;
-  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS && !isNetworkError;
+  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS;
 
   return (
     <KeyboardAvoidingView
@@ -140,17 +139,6 @@ const LoginScreen = ({ navigation }) => {
 
         {/* ── Floating form panel ─────────────────────────────────────────── */}
         <View style={styles.panel}>
-
-          {/* Network error banner — amber, shown for offline/connection failures */}
-          {isNetworkError && !!error && (
-            <View style={styles.networkBanner}>
-              <Icon name="wifi-off" size={18} color="#5d3a00" style={{ marginRight: 8 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.networkTitle}>No Internet Connection</Text>
-                <Text style={styles.networkBody}>{error}</Text>
-              </View>
-            </View>
-          )}
 
           {/* Pending banner — amber, for accounts awaiting approval */}
           {isPending && (
@@ -361,20 +349,6 @@ const styles = StyleSheet.create({
   linkBtn: { alignItems: 'center', marginTop: 18 },
   linkText: { color: '#888', fontSize: 14 },
   linkAccent: { color: PURPLE_MAIN, fontWeight: '700' },
-
-  /* Network error banner — amber/orange */
-  networkBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFF8E1',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  networkTitle: { fontWeight: '700', color: '#5d3a00', fontSize: 13, marginBottom: 3 },
-  networkBody: { color: '#5d3a00', fontSize: 12, lineHeight: 17 },
 
   /* Pending banner — amber */
   pendingBanner: {

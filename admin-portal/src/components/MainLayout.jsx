@@ -160,7 +160,7 @@ const MainLayout = ({ children }) => {
           <div className="header-right">
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
               <div className="header-admin-chip">
-                <Avatar className="header-avatar" size={30}>
+                <Avatar className="header-avatar" size={36}>
                   {initials(admin)}
                 </Avatar>
                 <span className="header-admin-name">

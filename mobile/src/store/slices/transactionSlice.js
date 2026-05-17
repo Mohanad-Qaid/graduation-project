@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { syncWithdrawalNotifications } from '../../services/offlineDb';
+import { syncWithdrawalNotifications, cacheTransactions, getCachedTransactions } from '../../services/offlineDb';
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetch',
@@ -11,9 +11,26 @@ export const fetchTransactions = createAsyncThunk(
       const params = { page, limit: 20 };
       if (type) params.type = type;
       const response = await api.get(endpoint, { params });
+      
+      // Save offline
+      if (page === 1) {
+        cacheTransactions(response.data.data).catch(() => {});
+      }
+      
       // response.data shape: { success, message, data: [...], meta: { total, page, limit, totalPages } }
       return { data: response.data.data, meta: response.data.meta, page };
     } catch (error) {
+      // If network fails, try SQLite offline cache
+      try {
+        const cached = await getCachedTransactions();
+        if (cached && cached.length > 0) {
+          console.log('[SQLite] Loaded transactions from offline cache!');
+          return { data: cached, meta: { total: cached.length, page: 1, limit: 20, totalPages: 1 }, page: 1 };
+        }
+      } catch (dbErr) {
+        console.warn('Failed to load cached transactions', dbErr);
+      }
+      
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
     }
   }

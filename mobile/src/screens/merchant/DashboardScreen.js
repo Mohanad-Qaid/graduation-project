@@ -7,6 +7,7 @@ import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchMerchantDashboard, clearError } from '../../store/slices/walletSlice';
+import { fetchTransactions } from '../../store/slices/transactionSlice';
 import { getUnreadNotificationCount } from '../../services/offlineDb';
 
 const PURPLE_DARK = '#1A006B';
@@ -60,6 +61,7 @@ const MerchantDashboard = ({ navigation }) => {
 
   const loadData = useCallback(() => {
     dispatch(fetchMerchantDashboard());
+    dispatch(fetchTransactions({ page: 1 }));
     refreshUnread();
   }, [dispatch, refreshUnread]);
   useEffect(() => { loadData(); }, [loadData]);

@@ -33,11 +33,23 @@ async function getPendingUsers() {
 /**
  * Get all users (admin).
  */
-async function getAllUsers({ page = 1, limit = 50, role, status }) {
+async function getAllUsers({ page = 1, limit = 50, role, status, search }) {
     const offset = (page - 1) * limit;
     const where = {};
     if (role) where.role = role;
     if (status) where.status = status;
+
+    if (search && search.trim()) {
+        const term = `%${search.trim()}%`;
+        where[Op.or] = [
+            { first_name:  { [Op.iLike]: term } },
+            { last_name:   { [Op.iLike]: term } },
+            { email:       { [Op.iLike]: term } },
+            { phone:       { [Op.iLike]: term } },
+            // full-name search: concat first + last
+            literal(`(first_name || ' ' || last_name) ILIKE '${search.trim().replace(/'/g, "''")}%'`),
+        ];
+    }
 
     const { count, rows } = await User.findAndCountAll({
         where,

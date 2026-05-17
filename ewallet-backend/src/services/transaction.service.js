@@ -8,7 +8,7 @@ const { createHttpError } = require('../middlewares/errorHandler.middleware');
  * Get transaction history for a wallet (paginated).
  * Returns both sent and received transactions.
  */
-async function getTransactionHistory({ userId, page = 1, limit = 20, type, status }) {
+async function getTransactionHistory({ userId, page = 1, limit = 20, type, status, startDate, endDate }) {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
@@ -22,6 +22,15 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
     };
     if (type) where.transaction_type = type;
     if (status) where.status = status;
+    if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.createdAt[Op.lte] = end;
+        }
+    }
 
     const { count, rows } = await Transaction.findAndCountAll({
         where,
@@ -210,11 +219,25 @@ async function getExpenseSummary(userId, period = 'month') {
 /**
  * Get all transactions (admin view, paginated).
  */
-async function getAllTransactions({ page = 1, limit = 50, type, status }) {
+async function getAllTransactions({ page = 1, limit = 50, type, status, startDate, endDate, minAmount, maxAmount }) {
     const offset = (page - 1) * limit;
     const where = {};
     if (type) where.transaction_type = type;
     if (status) where.status = status;
+    if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.createdAt[Op.lte] = end;
+        }
+    }
+    if (minAmount !== undefined || maxAmount !== undefined) {
+        where.amount = {};
+        if (minAmount !== undefined) where.amount[Op.gte] = parseFloat(minAmount);
+        if (maxAmount !== undefined) where.amount[Op.lte] = parseFloat(maxAmount);
+    }
 
     const { count, rows } = await Transaction.findAndCountAll({
         where,

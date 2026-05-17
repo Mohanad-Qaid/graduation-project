@@ -29,7 +29,9 @@ injectStore(store);
 
 const App = () => {
   useEffect(() => {
-    initDatabase();
+    initDatabase().catch(err => {
+      console.warn("Offline DB Initialization failed (expected in Expo Go):", err);
+    });
   }, []);
 
   return (

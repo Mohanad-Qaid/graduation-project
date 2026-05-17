@@ -97,13 +97,15 @@ async function payViaQR(req, res, next) {
  */
 async function getTransactions(req, res, next) {
     try {
-        const { page, limit, type, status } = req.query;
+        const { page, limit, type, status, startDate, endDate } = req.query;
         const result = await transactionService.getTransactionHistory({
             userId: req.user.id,
             page: parseInt(page, 10) || 1,
             limit: parseInt(limit, 10) || 20,
             type,
             status,
+            startDate,
+            endDate,
         });
         return sendSuccess(res, { message: 'Transactions retrieved.', data: result.transactions, meta: result });
     } catch (err) {

@@ -1,9 +1,21 @@
 {
-  "plugins": [
-    "expo-sqlite",
-    "expo-secure-store"
-  ],
-  "android": {
-    "package": "com.anonymous.ewalletmobile"
+  "expo": {
+    "name": "EWalletMobile",
+    "slug": "EWalletMobile",
+    "newArchEnabled": false,
+    "plugins": [
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.ewallet",
+          "enableGooglePay": false
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.anonymous.ewalletmobile"
+    }
   }
 }

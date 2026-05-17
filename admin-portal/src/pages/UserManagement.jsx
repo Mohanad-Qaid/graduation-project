@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Table, Card, Typography, Tag, Button, Select, Space,
@@ -6,16 +6,14 @@ import {
 } from 'antd';
 import {
   ShopOutlined, UserOutlined, StopOutlined,
-  CheckCircleOutlined, WalletOutlined,
+  CheckCircleOutlined, WalletOutlined, SearchOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons';
 import { fetchUsers, suspendUser, activateUser, topupUser } from '../store/slices/usersSlice';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 const { TextArea } = Input;
-
-// NOTE: activateUser currently calls the approve endpoint as a temporary workaround.
-// TODO: Add a dedicated /activate endpoint to the backend in the future.
 
 const statusColors = {
   APPROVED: 'success',
@@ -28,7 +26,8 @@ const UserManagement = () => {
   const dispatch = useDispatch();
   const { list, pagination, isLoading } = useSelector((state) => state.users);
 
-  const [filters, setFilters] = useState({ role: null, status: null, page: 1 });
+  const [filters, setFilters] = useState({ role: null, status: null, page: 1, search: '' });
+  const [searchInput, setSearchInput] = useState('');
   const [suspendModal, setSuspendModal] = useState({ visible: false, userId: null });
   const [suspendReason, setSuspendReason] = useState('');
   const [topupModal, setTopupModal] = useState({ visible: false, userId: null, userName: '' });
@@ -39,8 +38,24 @@ const UserManagement = () => {
     const params = { page: filters.page, limit: 20 };
     if (filters.role) params.role = filters.role;
     if (filters.status) params.status = filters.status;
+    if (filters.search) params.search = filters.search;
     dispatch(fetchUsers(params));
   }, [dispatch, filters]);
+
+  // Debounce search: wait 400ms after user stops typing
+  const debounceRef = React.useRef(null);
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchInput(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, search: val, page: 1 }));
+    }, 400);
+  };
+  const handleSearchSubmit = (val) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setFilters((prev) => ({ ...prev, search: val, page: 1 }));
+  };
 
   const handleSuspend = async () => {
     try {
@@ -57,18 +72,12 @@ const UserManagement = () => {
   const handleActivate = async (userId) => {
     Modal.confirm({
       title: 'Re-Activate User',
-      content: (
-        <span>
-          This will re-approve the suspended user.<br />
-          <small style={{ color: '#888' }}>
-            (Temporary workaround — uses the approve endpoint)
-          </small>
-        </span>
-      ),
+      content: 'This will set the user status back to Approved.',
+      okText: 'Yes, Reactivate',
       onOk: async () => {
         try {
           await dispatch(activateUser(userId)).unwrap();
-          message.success('User re-activated successfully');
+          message.success('User reactivated successfully');
           dispatch(fetchUsers({ page: filters.page, limit: 20 }));
         } catch (error) {
           message.error(error);
@@ -162,6 +171,7 @@ const UserManagement = () => {
       key: 'actions',
       render: (_, record) => (
         <Space>
+          {/* APPROVED → can suspend */}
           {record.status === 'APPROVED' && (
             <Button
               danger
@@ -172,6 +182,8 @@ const UserManagement = () => {
               Suspend
             </Button>
           )}
+
+          {/* SUSPENDED → can reactivate */}
           {record.status === 'SUSPENDED' && (
             <Button
               type="primary"
@@ -182,13 +194,31 @@ const UserManagement = () => {
               Reactivate
             </Button>
           )}
-          <Button
-            icon={<WalletOutlined />}
-            size="small"
-            onClick={() => setTopupModal({ visible: true, userId: record.id, userName: `${record.first_name} ${record.last_name}` })}
-          >
-            Top-Up
-          </Button>
+
+          {/* REJECTED → can re-approve */}
+          {record.status === 'REJECTED' && (
+            <Tooltip title="Re-approve this rejected account">
+              <Button
+                type="default"
+                icon={<RollbackOutlined />}
+                size="small"
+                onClick={() => handleActivate(record.id)}
+              >
+                Re-Approve
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* Top-Up only for APPROVED users */}
+          {record.status === 'APPROVED' && (
+            <Button
+              icon={<WalletOutlined />}
+              size="small"
+              onClick={() => setTopupModal({ visible: true, userId: record.id, userName: `${record.first_name} ${record.last_name}` })}
+            >
+              Top-Up
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -199,7 +229,21 @@ const UserManagement = () => {
       <h2 className="page-title" style={{ marginBottom: 24 }}>User Management</h2>
 
       <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]}>
+        <Row gutter={[16, 16]} align="middle">
+          {/* Search bar — full width on small, grows on larger screens */}
+          <Col xs={24} md={12}>
+            <Input
+              prefix={<SearchOutlined style={{ color: '#aaa' }} />}
+              placeholder="Search by name, email or phone…"
+              value={searchInput}
+              onChange={handleSearchChange}
+              onPressEnter={(e) => handleSearchSubmit(e.target.value)}
+              allowClear
+              onClear={() => handleSearchSubmit('')}
+              size="middle"
+            />
+          </Col>
+
           <Col xs={24} sm={12} md={6}>
             <Select
               placeholder="Filter by Role"

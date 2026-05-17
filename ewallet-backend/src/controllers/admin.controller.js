@@ -11,12 +11,13 @@ const { sendSuccess } = require('../utils/response.util');
 /** GET /api/v1/admin/users */
 async function getAllUsers(req, res, next) {
     try {
-        const { page, limit, role, status } = req.query;
+        const { page, limit, role, status, search } = req.query;
         const result = await adminService.getAllUsers({
             page: parseInt(page, 10) || 1,
             limit: parseInt(limit, 10) || 50,
             role,
             status,
+            search,
         });
         return sendSuccess(res, { message: 'Users retrieved.', data: result.users, meta: result });
     } catch (err) {
@@ -79,12 +80,16 @@ async function reactivateUser(req, res, next) {
 /** GET /api/v1/admin/transactions */
 async function getAllTransactions(req, res, next) {
     try {
-        const { page, limit, type, status } = req.query;
+        const { page, limit, type, status, startDate, endDate, minAmount, maxAmount } = req.query;
         const result = await transactionService.getAllTransactions({
             page: parseInt(page, 10) || 1,
             limit: parseInt(limit, 10) || 50,
             type,
             status,
+            startDate,
+            endDate,
+            minAmount,
+            maxAmount,
         });
         return sendSuccess(res, { message: 'Transactions retrieved.', data: result.transactions, meta: result });
     } catch (err) {
