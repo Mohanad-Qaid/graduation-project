@@ -10,7 +10,7 @@ import { sendOTP, resetPin, clearOtpState } from '../../store/slices/authSlice';
 import OTPInput from '../../components/OTPInput';
 
 const PURPLE_DARK = '#1A006B';
-const PURPLE_MID  = '#4A0099';
+const PURPLE_MID = '#4A0099';
 const PURPLE_MAIN = '#6200EE';
 const OTP_SECONDS = 180; // must match backend TTL
 
@@ -21,13 +21,21 @@ function useCountdown(startSeconds, active) {
 
     useEffect(() => {
         if (!active) { setRemaining(startSeconds); return; }
+
+        // Use absolute time to keep sync even if app goes to background
+        const endTime = Date.now() + startSeconds * 1000;
         setRemaining(startSeconds);
+
         intervalRef.current = setInterval(() => {
-            setRemaining((s) => {
-                if (s <= 1) { clearInterval(intervalRef.current); return 0; }
-                return s - 1;
-            });
+            const timeLeft = Math.floor((endTime - Date.now()) / 1000);
+            if (timeLeft <= 0) {
+                setRemaining(0);
+                clearInterval(intervalRef.current);
+            } else {
+                setRemaining(timeLeft);
+            }
         }, 1000);
+
         return () => clearInterval(intervalRef.current);
     }, [active, startSeconds]);
 
@@ -37,22 +45,37 @@ function useCountdown(startSeconds, active) {
 // ── Main Screen ────────────────────────────────────────────────────────────────
 const ForgotPasswordScreen = ({ navigation }) => {
     const dispatch = useDispatch();
-    const { otpLoading, otpError, otpSuccess } = useSelector((s) => s.auth);
+    const { otpLoading, otpError, otpSuccess, cachedEmail } = useSelector((s) => s.auth);
+
+    const maskEmail = (em) => {
+        if (!em) return '';
+        const [name, domain] = em.split('@');
+        const visibleName = name.length > 3 ? name.substring(0, 3) : name;
+        return `${visibleName}***@${domain}`;
+    };
 
     // Step: 1 = email entry, 2 = OTP verify, 3 = new PIN
-    const [step, setStep]           = useState(1);
-    const [email, setEmail]         = useState('');
+    const [step, setStep] = useState(1);
+    const [email, setEmail] = useState('');
     const [emailError, setEmailError] = useState('');
-    const [digits, setDigits]       = useState(Array(6).fill(''));
+    const [digits, setDigits] = useState(Array(6).fill(''));
     const [otpActive, setOtpActive] = useState(false);
-    const [newPin, setNewPin]       = useState('');
+    const [newPin, setNewPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
-    const [pinError, setPinError]   = useState('');
+    const [pinError, setPinError] = useState('');
     const [localSuccess, setLocalSuccess] = useState(false);
 
     const countdown = useCountdown(OTP_SECONDS, otpActive);
     const code = digits.join('');
     const codeComplete = code.length === 6;
+    const timerRunning = countdown > 0 && otpActive;
+
+    // If device is registered, auto-fill email
+    useEffect(() => {
+        if (cachedEmail) {
+            setEmail(cachedEmail);
+        }
+    }, [cachedEmail]);
 
     // ── Step 1 → Step 2 ───────────────────────────────────────────────────────
     const handleSendOTP = async () => {
@@ -83,6 +106,11 @@ const ForgotPasswordScreen = ({ navigation }) => {
     // ── Step 2 → Step 3 ───────────────────────────────────────────────────────
     const handleVerifyOTP = async () => {
         if (!codeComplete) return;
+        if (!timerRunning) {
+            // Block proceeding if timer is zero
+            dispatch({ type: 'auth/sendOTP/rejected', payload: 'Code expired. Please request a new one.' });
+            return;
+        }
         // We don't call verify-email here; OTP is verified atomically in reset-password.
         // Just advance to step 3 with the code held in state.
         dispatch(clearOtpState());
@@ -127,7 +155,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
     useEffect(() => () => { dispatch(clearOtpState()); }, []);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    const timerRunning = countdown > 0 && otpActive;
     const mm = String(Math.floor(countdown / 60)).padStart(2, '0');
     const ss = String(countdown % 60).padStart(2, '0');
 
@@ -179,25 +206,40 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 {step === 1 && (
                     <View style={styles.card}>
                         <Icon name="email-outline" size={36} color={PURPLE_MAIN} style={styles.cardIcon} />
-                        <Text style={styles.cardTitle}>Email Address</Text>
-                        <Text style={styles.cardDesc}>
-                            Enter the email you registered with. We'll send a 6-digit code to verify it's you.
-                        </Text>
+                        {cachedEmail ? (
+                            <>
+                                <Text style={styles.cardTitle}>Send Verification Code</Text>
+                                <Text style={styles.cardDesc}>
+                                    To reset your PIN, we'll send a 6-digit code to this email below.
+                                </Text>
+                                <View style={styles.maskedEmailBox}>
+                                    <Text style={styles.maskedEmailText}>{maskEmail(cachedEmail)}</Text>
 
-                        <TextInput
-                            label="Email"
-                            value={email}
-                            onChangeText={(v) => { setEmail(v); setEmailError(''); dispatch(clearOtpState()); }}
-                            mode="outlined"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoComplete="email"
-                            style={styles.input}
-                            outlineColor="#E0E0E0"
-                            activeOutlineColor={PURPLE_MAIN}
-                            left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
-                            error={!!emailError || !!otpError}
-                        />
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.cardTitle}>Email Address</Text>
+                                <Text style={styles.cardDesc}>
+                                    Enter the email you registered with. We'll send a 6-digit code to verify it's you.
+                                </Text>
+                                <TextInput
+                                    label="Email"
+                                    value={email}
+                                    onChangeText={(v) => { setEmail(v); setEmailError(''); dispatch(clearOtpState()); }}
+                                    mode="outlined"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoComplete="email"
+                                    style={styles.input}
+                                    outlineColor="#E0E0E0"
+                                    activeOutlineColor={PURPLE_MAIN}
+                                    left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
+                                    error={!!emailError || !!otpError}
+                                />
+                            </>
+                        )}
+
                         {(emailError || otpError) && (
                             <View style={styles.errorBanner}>
                                 <Icon name="alert-circle-outline" size={15} color="#B71C1C" />
@@ -225,7 +267,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                         <Icon name="shield-key-outline" size={36} color={PURPLE_MAIN} style={styles.cardIcon} />
                         <Text style={styles.cardTitle}>Verify Code</Text>
                         <Text style={styles.cardDesc}>
-                            A code was sent to <Text style={styles.emailHighlight}>{email}</Text>.
+                            A code was sent to <Text style={styles.emailHighlight}>{maskEmail(email)}</Text>.
                             Enter it below.
                         </Text>
 
@@ -402,6 +444,27 @@ const styles = StyleSheet.create({
         lineHeight: 20, marginBottom: 24,
     },
     emailHighlight: { fontWeight: '700', color: PURPLE_DARK },
+
+    maskedEmailBox: {
+        backgroundColor: '#ffffffff',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#E1D5FA',
+    },
+    maskedEmailText: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: PURPLE_MAIN,
+        marginBottom: 4,
+    },
+    maskedEmailNote: {
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'center',
+    },
 
     /* Input */
     input: { backgroundColor: '#fff', marginBottom: 4 },

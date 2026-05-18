@@ -16,6 +16,11 @@ import { Platform } from 'react-native';
 const PORT = process.env.EXPO_PUBLIC_API_PORT || '5000';
 
 function getBaseUrl() {
+    // 1. Direct URL Override (Used for Ngrok/Online Servers)
+    if (process.env.EXPO_PUBLIC_API_URL) {
+        return process.env.EXPO_PUBLIC_API_URL;
+    }
+
     if (Platform.OS === 'web') {
         return `http://localhost:${PORT}/api/v1`;
     }

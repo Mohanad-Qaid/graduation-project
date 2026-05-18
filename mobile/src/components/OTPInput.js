@@ -1,112 +1,101 @@
-import React, { useRef, useCallback } from 'react';
-import { View, TextInput, StyleSheet, Pressable } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, TextInput, StyleSheet, Pressable, Text } from 'react-native';
 
 const PURPLE_MAIN = '#6200EE';
-const BOX_SIZE    = 48;
+const BOX_SIZE = 48;
 
 /**
  * 6-box OTP input component.
- *
- * Props:
- *   value        string[6]  — controlled array of digit chars ('' for empty)
- *   onChange     (newDigits: string[]) => void
- *   disabled?    boolean
+ * Uses a single hidden TextInput and 6 View boxes for zero-lag typing.
  */
 const OTPInput = ({ value = [], onChange, disabled = false }) => {
-    const refs = useRef([]);
+    const inputRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
 
-    const digits = Array.from({ length: 6 }, (_, i) => value[i] ?? '');
+    // Convert array value to string for the hidden input
+    const codeString = value.join('');
 
-    const focusBox = useCallback((index) => {
-        const clamped = Math.max(0, Math.min(5, index));
-        refs.current[clamped]?.focus();
-    }, []);
+    const handleChange = (text) => {
+        const cleaned = text.replace(/\D/g, '').slice(0, 6);
+        const nextArray = cleaned.split('');
 
-    const handleChange = useCallback((text, index) => {
-        // Strip non-digits and enforce max 1 char
-        const cleaned = text.replace(/\D/g, '');
-
-        if (cleaned.length === 0) {
-            // Backspace / clear
-            const next = [...digits];
-            next[index] = '';
-            onChange(next);
-            return;
+        // Pad the array with empty strings to maintain length of 6
+        while (nextArray.length < 6) {
+            nextArray.push('');
         }
+        onChange(nextArray);
+    };
 
-        // Handle paste: if user pastes 6 digits at once
-        if (cleaned.length >= 6) {
-            const next = cleaned.slice(0, 6).split('');
-            onChange(next);
-            focusBox(5);
-            return;
+    const handlePress = () => {
+        if (!disabled && inputRef.current) {
+            inputRef.current.focus();
         }
-
-        // Single digit — fill current box and advance
-        const next = [...digits];
-        next[index] = cleaned[0];
-        onChange(next);
-
-        if (index < 5) {
-            focusBox(index + 1);
-        }
-    }, [digits, onChange, focusBox]);
-
-    const handleKeyPress = useCallback(({ nativeEvent }, index) => {
-        if (nativeEvent.key === 'Backspace') {
-            if (digits[index] === '' && index > 0) {
-                // Box is already empty — clear previous box and move back
-                const next = [...digits];
-                next[index - 1] = '';
-                onChange(next);
-                focusBox(index - 1);
-            } else {
-                // Clear current box in-place (handleChange will fire too, that's fine)
-                const next = [...digits];
-                next[index] = '';
-                onChange(next);
-            }
-        }
-    }, [digits, onChange, focusBox]);
+    };
 
     return (
-        <View style={styles.row}>
-            {digits.map((digit, index) => {
-                const isFilled  = digit !== '';
-                const isActive  = false; // visual state managed by focus events
+        <View style={styles.container}>
+            <Pressable
+                style={styles.row}
+                onPress={handlePress}
+                activeOpacity={1}
+            >
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                    const digit = value[index] || '';
+                    const isFilled = digit !== '';
+                    // The box is "active" if it's the first empty box, or if all are filled and it's the last box
+                    const isActive = isFocused && !disabled && (
+                        (index === codeString.length && index < 6) ||
+                        (index === 5 && codeString.length === 6)
+                    );
 
-                return (
-                    <Pressable key={index} onPress={() => focusBox(index)}>
-                        <TextInput
-                            ref={(el) => { refs.current[index] = el; }}
+                    return (
+                        <View
+                            key={index}
                             style={[
                                 styles.box,
                                 isFilled && styles.boxFilled,
+                                isActive && styles.boxActive,
                                 disabled && styles.boxDisabled,
                             ]}
-                            value={digit}
-                            onChangeText={(text) => handleChange(text, index)}
-                            onKeyPress={(e) => handleKeyPress(e, index)}
-                            keyboardType="numeric"
-                            maxLength={6}  // allow paste of full code
-                            selectTextOnFocus
-                            editable={!disabled}
-                            textContentType="oneTimeCode"   // iOS SMS autofill
-                            autoComplete="sms-otp"          // Android SMS autofill
-                            caretHidden
-                        />
-                    </Pressable>
-                );
-            })}
+                        >
+                            <Text style={styles.boxText}>{digit}</Text>
+                        </View>
+                    );
+                })}
+            </Pressable>
+
+            {/* Hidden Input covering the entire component */}
+            <TextInput
+                ref={inputRef}
+                style={styles.hiddenInput}
+                value={codeString}
+                onChangeText={handleChange}
+                keyboardType="numeric"
+                maxLength={6}
+                textContentType="oneTimeCode"
+                autoComplete="sms-otp"
+                editable={!disabled}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                autoFocus
+                caretHidden={true}
+                selection={{ start: codeString.length, end: codeString.length }}
+            />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    container: {
+        width: '100%',
+        alignItems: 'center',
+        position: 'relative', // so the absolute input stays within
+    },
     row: {
         flexDirection: 'row',
         gap: 10,
         justifyContent: 'center',
+        width: '100%',
     },
     box: {
         width: BOX_SIZE,
@@ -115,17 +104,33 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#DDD',
         backgroundColor: '#F9F7FF',
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#1A006B',
-        textAlign: 'center',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     boxFilled: {
         borderColor: PURPLE_MAIN,
         backgroundColor: '#EDE7F6',
     },
+    boxActive: {
+        borderColor: PURPLE_MAIN,
+        borderWidth: 2,
+    },
     boxDisabled: {
         opacity: 0.5,
+    },
+    boxText: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#1A006B',
+    },
+    hiddenInput: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        opacity: 0, // Natively hidden but fully intercepts taps
+        color: 'transparent',
     },
 });
 

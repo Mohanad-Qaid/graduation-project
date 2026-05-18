@@ -63,9 +63,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Do not attempt to refresh if the 401 came from a public path (like login)
+    const isPublic = PUBLIC_PATHS.some((p) => originalRequest.url?.endsWith(p));
+
     // Only attempt refresh on 401 errors, and not for the refresh call itself
     // to avoid an infinite loop.
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (error.response?.status !== 401 || originalRequest._retry || isPublic) {
       return Promise.reject(error);
     }
 

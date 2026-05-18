@@ -8,12 +8,24 @@ const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
 
-// Substitutes loopback IPs with a real public IP in development so geoip-lite
-// can resolve a location. Has no effect in production.
+// Substitutes loopback and private LAN IPs with a real public IP in development
+// so geoip-lite can resolve a location. Has no effect in production.
 function resolveIp(ip) {
     if (process.env.NODE_ENV !== 'development') return ip;
-    const loopbacks = ['::1', '127.0.0.1', '::ffff:127.0.0.1'];
-    return loopbacks.includes(ip) ? '8.8.8.8' : ip;
+    
+    // Strip the IPv6-mapped prefix if Node.js added it (e.g., ::ffff:192.168.1.5)
+    const cleanIp = ip.replace(/^::ffff:/, '');
+    
+    // Check if the IP belongs to localhost or any private network block
+    const isLocalOrPrivate = 
+        cleanIp === '127.0.0.1' || 
+        cleanIp === '::1' ||
+        cleanIp.startsWith('10.') || 
+        cleanIp.startsWith('192.168.') || 
+        cleanIp.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./);
+        
+    // Return mock public IP if local, otherwise return the actual IP
+    return isLocalOrPrivate ? (process.env.MOCK_GEO_IP || '8.8.8.8') : ip;
 }
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
@@ -86,6 +98,35 @@ async function register(dto) {
     }
 }
 
+// ─── Login Lockout Helper ───────────────────────────────────────────────────────
+
+/**
+ * Handle failed login attempts.
+ * 3 fails -> 1 hour lockout
+ * 6 fails -> Permanent database lockout
+ */
+async function handleFailedLogin(user, emailStr) {
+    const email = user ? user.email : emailStr;
+    const attemptKey = `login_attempts:${email}`;
+    const lockoutKey = `login_lockout:${email}`;
+
+    const attempts = await redisClient.incr(attemptKey);
+    
+    if (attempts === 1) {
+        await redisClient.expire(attemptKey, 24 * 60 * 60); // 24 hour TTL
+    }
+
+    if (attempts === 3) {
+        await redisClient.setex(lockoutKey, 60 * 60, '1'); // 1 hour lockout
+    } else if (attempts >= 6 && user) {
+        // Prepend 'LOCKED:' to the password hash to permanently lock them without schema changes
+        if (!user.password_hash.startsWith('LOCKED:')) {
+            user.password_hash = 'LOCKED:' + user.password_hash;
+            await user.save();
+        }
+    }
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 /**
@@ -94,17 +135,35 @@ async function register(dto) {
  * @param {object} dto - { email, password }
  */
 async function login(dto) {
-    const { email, password } = dto;
+    const { email: rawEmail, password } = dto;
+    const email = rawEmail.trim().toLowerCase();
+
+    // 1. Check temporary lockout first
+    const isTempLocked = await redisClient.get(`login_lockout:${email}`);
+    if (isTempLocked) {
+        throw createHttpError(429, 'Too many failed attempts. Please try again in an hour.');
+    }
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
+        await handleFailedLogin(null, email);
         throw createHttpError(401, 'Invalid credentials.');
+    }
+
+    // 2. Check permanent lockout (DB level prefix)
+    if (user.password_hash.startsWith('LOCKED:')) {
+        throw createHttpError(403, 'Account is permanently locked due to too many failed attempts. Please reset your PIN.');
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
+        await handleFailedLogin(user, email);
         throw createHttpError(401, 'Invalid credentials.');
     }
+
+    // Success - clear locks
+    await redisClient.del(`login_attempts:${email}`);
+    await redisClient.del(`login_lockout:${email}`);
 
     if (user.status === 'PENDING') {
         throw createHttpError(403, 'Your account is under review. Please wait for admin approval.');
@@ -136,6 +195,7 @@ async function login(dto) {
             last_name: user.last_name,
             business_name: user.business_name,
             email: user.email,
+            phone: user.phone,
             role: user.role,
             status: user.status,
         },

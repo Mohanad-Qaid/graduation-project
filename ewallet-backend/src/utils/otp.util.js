@@ -2,7 +2,7 @@
 
 const redisClient = require('../config/redis');
 
-const OTP_TTL_SECONDS     = 180;  // 3 minutes
+const OTP_TTL_SECONDS     = 195;  // 3 minutes + 15 seconds grace period
 const MAX_ATTEMPTS        = 3;
 const RESEND_WINDOW_SECS  = 3600; // 1 hour
 const MAX_RESENDS         = 3;

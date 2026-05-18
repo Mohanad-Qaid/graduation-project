@@ -30,13 +30,21 @@ function useCountdown(startSeconds, active) {
   const intervalRef = useRef(null);
   useEffect(() => {
     if (!active) { setRemaining(startSeconds); return; }
+    
+    // Use absolute time to keep sync even if app goes to background
+    const endTime = Date.now() + startSeconds * 1000;
     setRemaining(startSeconds);
+
     intervalRef.current = setInterval(() => {
-      setRemaining((s) => {
-        if (s <= 1) { clearInterval(intervalRef.current); return 0; }
-        return s - 1;
-      });
+      const timeLeft = Math.floor((endTime - Date.now()) / 1000);
+      if (timeLeft <= 0) {
+        setRemaining(0);
+        clearInterval(intervalRef.current);
+      } else {
+        setRemaining(timeLeft);
+      }
     }, 1000);
+
     return () => clearInterval(intervalRef.current);
   }, [active, startSeconds]);
   return remaining;
@@ -448,12 +456,6 @@ const RegisterScreen = ({ navigation }) => {
               }
             </TouchableOpacity>
 
-            <Text style={styles.otpNote}>
-              You can verify later from your profile, but some features may be limited.
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={{ alignItems: 'center', marginTop: 4 }}>
-              <Text style={styles.linkAccent}>Skip for now</Text>
-            </TouchableOpacity>
           </View>
         </View>
       )}

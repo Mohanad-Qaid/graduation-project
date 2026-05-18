@@ -174,13 +174,13 @@ const ProfileScreen = () => {
         onRequestClose={() => setLogoutModalVisible(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setLogoutModalVisible(false)}>
-          <Pressable style={styles.modalCard} onPress={() => {}}>
+          <Pressable style={styles.modalCard} onPress={() => { }}>
             <View style={styles.modalIconWrap}>
               <Icon name="logout-variant" size={28} color={PURPLE_MAIN} />
             </View>
-            <Text style={styles.modalTitle}>Sign Out?</Text>
+            <Text style={styles.modalTitle}>Sign Out</Text>
             <Text style={styles.modalSubtitle}>
-              You will be signed out. You can sign back in with your PIN or email anytime.
+              Are you sure you want to sign out?
             </Text>
             <View style={styles.modalActions}>
               <TouchableOpacity

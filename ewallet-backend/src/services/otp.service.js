@@ -6,6 +6,7 @@ const { saveOTP, verifyOTP, canResend, incrementResend } = require('../utils/otp
 const { sendOTPEmail } = require('../utils/mailer.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
+const redisClient = require('../config/redis');
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
@@ -104,6 +105,10 @@ async function resetPassword(email, code, newPin) {
 
     const password_hash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await user.update({ password_hash });
+
+    // Clear backend lockout states so the user can immediately log in
+    await redisClient.del(`login_attempts:${normalised}`);
+    await redisClient.del(`login_lockout:${normalised}`);
 
     logger.info(`Password reset for user ${user.id}`);
 }

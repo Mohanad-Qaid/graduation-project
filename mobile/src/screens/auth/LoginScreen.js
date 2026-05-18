@@ -14,7 +14,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   login,
   pinLogin,
-  wipeDevice,
   clearError,
 } from '../../store/slices/authSlice';
 
@@ -40,6 +39,8 @@ const LoginScreen = ({ navigation }) => {
     isSubmitting: isLoading,
     error,
     failCount,
+    lockoutUntil,
+    isPermanentlyLocked,
     cachedEmail,
     cachedFirstName,
     cachedLastName,
@@ -49,11 +50,6 @@ const LoginScreen = ({ navigation }) => {
   const [pin, setPin] = useState('');
   // Track the previous failCount so we can detect a NEW failure
   const prevFailCount = React.useRef(failCount);
-
-  // Wipe device after MAX_ATTEMPTS wrong PIN attempts
-  useEffect(() => {
-    if (failCount >= MAX_ATTEMPTS) dispatch(wipeDevice());
-  }, [failCount, dispatch]);
 
   // Clear PIN whenever a new failure is recorded (failCount went up)
   useEffect(() => {
@@ -88,13 +84,24 @@ const LoginScreen = ({ navigation }) => {
   const isExperienced = !!cachedEmail;
   const initials = getInitials(cachedFirstName, cachedLastName);
   const fullName = [cachedFirstName, cachedLastName].filter(Boolean).join(' ');
-  const isPending  = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
+  // Lockout logic
+  const isTemporarilyLocked = lockoutUntil && Date.now() < lockoutUntil;
+  const isInputDisabled = isPermanentlyLocked || isTemporarilyLocked || isLoading;
+
+  // Remaining attempts only shown in PIN mode after at least one failure, and not locked
+  let attemptsLeft = 3;
+  if (failCount < 3) attemptsLeft = 3 - failCount;
+  else if (failCount >= 3 && failCount < 6) attemptsLeft = 6 - failCount;
+
+  const showAttemptsWarning = isExperienced && failCount > 0 && !isTemporarilyLocked && !isPermanentlyLocked && attemptsLeft > 0;
+
+  const isPending = typeof error === 'string' && error.toLowerCase().includes(PENDING_PHRASE);
   const isRejected = typeof error === 'string' && error.toLowerCase().includes('rejected');
-  // Snackbar only for errors that don't have a dedicated inline banner
-  const snackbarError = error && !isPending && !isRejected ? error : null;
-  // Remaining attempts only shown in PIN mode after at least one failure
-  const attemptsLeft = MAX_ATTEMPTS - failCount;
-  const showAttemptsWarning = isExperienced && failCount > 0 && failCount < MAX_ATTEMPTS;
+  const isSuspended = typeof error === 'string' && error.toLowerCase().includes('suspended');
+  const isNetworkError = typeof error === 'string' && error.toLowerCase().includes('internet connection');
+
+  // Any error that isn't handled by specific banners or lockout logic goes to the generic banner
+  const isGenericError = error && !isPending && !isRejected && !isSuspended && !isNetworkError && !showAttemptsWarning && !isTemporarilyLocked && !isPermanentlyLocked;
 
   return (
     <KeyboardAvoidingView
@@ -166,6 +173,48 @@ const LoginScreen = ({ navigation }) => {
             </View>
           )}
 
+          {/* Network banner — amber */}
+          {isNetworkError && (
+            <View style={styles.networkBanner}>
+              <Icon name="wifi-off" size={18} color="#5d3a00" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.networkTitle}>No Internet Connection</Text>
+                <Text style={styles.networkBody}>{error}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Suspended banner — orange-red */}
+          {isSuspended && (
+            <View style={styles.suspendedBanner}>
+              <Icon name="account-cancel-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.suspendedTitle}>Account Suspended</Text>
+                <Text style={styles.suspendedBody}>{error}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Temporary Lockout Banner */}
+          {isTemporarilyLocked && !isPermanentlyLocked && (
+            <View style={styles.errorBanner}>
+              <Icon name="clock-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
+              <Text style={styles.errorBannerText}>
+                Too many failed attempts. Please try again after 1 hour.
+              </Text>
+            </View>
+          )}
+
+          {/* Permanent Lockout Banner */}
+          {isPermanentlyLocked && (
+            <View style={styles.errorBanner}>
+              <Icon name="shield-lock-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
+              <Text style={styles.errorBannerText}>
+                Account locked for security. You must set a new PIN.
+              </Text>
+            </View>
+          )}
+
           {/* Inline PIN error — red, shows attempt countdown */}
           {showAttemptsWarning && (
             <View style={styles.errorBanner}>
@@ -176,6 +225,14 @@ const LoginScreen = ({ navigation }) => {
                   {attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining.
                 </Text>
               </Text>
+            </View>
+          )}
+
+          {/* Generic Error Banner for anything else (e.g. Invalid credentials) */}
+          {isGenericError && (
+            <View style={styles.errorBanner}>
+              <Icon name="alert-circle-outline" size={18} color="#B71C1C" style={{ marginRight: 8 }} />
+              <Text style={styles.errorBannerText}>{error}</Text>
             </View>
           )}
 
@@ -207,6 +264,7 @@ const LoginScreen = ({ navigation }) => {
             style={styles.input}
             activeOutlineColor={PURPLE_MAIN}
             outlineColor="#DDD"
+            editable={!isLoading}
             left={<TextInput.Icon icon="lock-outline" color={PURPLE_MAIN} />}
           />
 
@@ -214,10 +272,10 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.submitBtn,
-              (isLoading || pin.length !== 6 || (!isExperienced && !email)) && styles.submitDisabled,
+              (isInputDisabled || pin.length !== 6 || (!isExperienced && !email)) && styles.submitDisabled,
             ]}
             onPress={handleSubmit}
-            disabled={isLoading || pin.length !== 6 || (!isExperienced && !email)}
+            disabled={isInputDisabled || pin.length !== 6 || (!isExperienced && !email)}
             activeOpacity={0.85}
           >
             {isLoading ? (
@@ -246,16 +304,6 @@ const LoginScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <Snackbar
-        visible={!!snackbarError}
-        onDismiss={() => dispatch(clearError())}
-        duration={5000}
-        action={{ label: 'OK', onPress: () => dispatch(clearError()) }}
-        style={{ backgroundColor: '#B71C1C' }}
-      >
-        {snackbarError}
-      </Snackbar>
     </KeyboardAvoidingView>
   );
 };
@@ -377,6 +425,24 @@ const styles = StyleSheet.create({
   },
   rejectedTitle: { fontWeight: '700', color: '#7f1d1d', fontSize: 13, marginBottom: 3 },
   rejectedBody: { color: '#7f1d1d', fontSize: 12, lineHeight: 17 },
+
+  /* Network banner — amber */
+  networkBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#FFC107',
+    borderRadius: 12, padding: 14, marginBottom: 16,
+  },
+  networkTitle: { fontWeight: '700', color: '#5d3a00', fontSize: 13, marginBottom: 3 },
+  networkBody: { color: '#5d3a00', fontSize: 12, lineHeight: 17 },
+
+  /* Suspended banner — orange-red */
+  suspendedBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#FFEBEE', borderWidth: 1, borderColor: '#EF5350',
+    borderRadius: 12, padding: 14, marginBottom: 16,
+  },
+  suspendedTitle: { fontWeight: '700', color: '#B71C1C', fontSize: 13, marginBottom: 3 },
+  suspendedBody: { color: '#B71C1C', fontSize: 12, lineHeight: 17 },
 
   /* Inline PIN error banner */
   errorBanner: {

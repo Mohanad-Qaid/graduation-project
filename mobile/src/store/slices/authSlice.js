@@ -108,7 +108,7 @@ export const pinLogin = createAsyncThunk(
 
       if (!isOffline) {
         failCount += 1;
-        if (failCount === 3) lockoutUntil = Date.now() + 60 * 60 * 1000; // 1 hour lockout
+        if (failCount === 3) lockoutUntil = Date.now() + 15; // 1 hour lockout
         if (failCount >= 6) isPermanentlyLocked = true; // Permanent block
 
         await saveLockoutState({ failCount, lockoutUntil, isPermanentlyLocked });
