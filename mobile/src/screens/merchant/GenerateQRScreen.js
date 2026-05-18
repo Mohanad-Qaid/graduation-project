@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  View, StyleSheet, Share, StatusBar, TouchableOpacity,
+  View, StyleSheet, StatusBar, TouchableOpacity,
 } from 'react-native';
 import { Text, ActivityIndicator, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
@@ -25,13 +25,7 @@ const GenerateQRScreen = ({ navigation }) => {
   const displayName = user?.business_name
     || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim();
 
-  const handleShare = async () => {
-    if (qrData?.payload) {
-      try {
-        await Share.share({ message: `Pay ${displayName} using the Wallet app. Scan their QR code in the app.` });
-      } catch (e) { }
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -83,25 +77,6 @@ const GenerateQRScreen = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* ── Actions ── */}
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.primaryBtn, !qrData?.payload && { opacity: 0.5 }]}
-          onPress={handleShare}
-          disabled={!qrData?.payload}
-          activeOpacity={0.85}
-        >
-          <Icon name="share-variant" size={18} color="#fff" />
-          <Text style={styles.primaryBtnText}>Share QR Code</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.secondaryBtn]}
-          onPress={() => dispatch(generateQR())}
-          activeOpacity={0.85}
-        >
-          <Icon name="refresh" size={18} color={PURPLE_MAIN} />
-          <Text style={styles.secondaryBtnText}>Refresh</Text>
-        </TouchableOpacity>
       </View>
 
       <Snackbar visible={!!error} onDismiss={() => dispatch(clearError())} duration={3000}>
@@ -157,15 +132,6 @@ const styles = StyleSheet.create({
   noQrWrap: { alignItems: 'center', paddingVertical: 20 },
   noQrText: { color: '#999', marginTop: 10 },
   hint: { color: '#777', fontSize: 13, textAlign: 'center', lineHeight: 19 },
-
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, borderRadius: 16, paddingVertical: 15, width: '100%', marginBottom: 12,
-  },
-  primaryBtn: { backgroundColor: PURPLE_MAIN },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  secondaryBtn: { borderWidth: 1.5, borderColor: PURPLE_MAIN, backgroundColor: '#fff' },
-  secondaryBtnText: { color: PURPLE_MAIN, fontSize: 15, fontWeight: '700' },
 });
 
 export default GenerateQRScreen;

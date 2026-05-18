@@ -80,25 +80,23 @@ export async function cacheTransactions(transactions) {
   try {
     const database = await getDatabase();
 
-    await database.withTransactionAsync(async () => {
-      await database.runAsync('DELETE FROM transactions');
-      for (const tx of transactions) {
-        await database.runAsync(
-          `INSERT OR REPLACE INTO transactions
-            (id, type, amount, counterparty, description, status, createdAt, synced)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-          [
-            tx.id,
-            tx.transaction_type || tx.type,
-            tx.amount,
-            tx.counterparty ?? null,
-            tx.description ?? null,
-            tx.status ?? null,
-            tx.createdAt ?? null,
-          ]
-        );
-      }
-    });
+    await database.runAsync('DELETE FROM transactions');
+    for (const tx of transactions) {
+      await database.runAsync(
+        `INSERT OR REPLACE INTO transactions
+          (id, type, amount, counterparty, description, status, createdAt, synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        [
+          tx.id,
+          tx.transaction_type || tx.type,
+          tx.amount,
+          tx.counterparty ?? null,
+          tx.description ?? null,
+          tx.status ?? null,
+          tx.createdAt ?? null,
+        ]
+      );
+    }
   } catch (err) {
     // Non-fatal — offline cache failure should not crash the app
     console.warn('[offlineDb] cacheTransactions failed:', err);
@@ -274,30 +272,28 @@ export async function clearUserProfile() {
 export async function cacheWithdrawals(withdrawals) {
   try {
     const database = await getDatabase();
-    await database.withTransactionAsync(async () => {
-      await database.runAsync('DELETE FROM withdrawals');
-      for (const w of withdrawals) {
-        await database.runAsync(
-          `INSERT OR REPLACE INTO withdrawals
-            (id, status, amount, fee_amount, net_amount, bank_name, bank_account,
-             bank_account_name, rejection_reason, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            w.id,
-            w.status ?? null,
-            w.amount ?? null,
-            w.fee_amount ?? null,
-            w.net_amount ?? null,
-            w.bank_name ?? null,
-            w.bank_account ?? null,
-            w.bank_account_name ?? null,
-            w.rejection_reason ?? null,
-            w.createdAt ?? null,
-            w.updatedAt ?? null,
-          ]
-        );
-      }
-    });
+    await database.runAsync('DELETE FROM withdrawals');
+    for (const w of withdrawals) {
+      await database.runAsync(
+        `INSERT OR REPLACE INTO withdrawals
+          (id, status, amount, fee_amount, net_amount, bank_name, bank_account,
+           bank_account_name, rejection_reason, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          w.id,
+          w.status ?? null,
+          w.amount ?? null,
+          w.fee_amount ?? null,
+          w.net_amount ?? null,
+          w.bank_name ?? null,
+          w.bank_account ?? null,
+          w.bank_account_name ?? null,
+          w.rejection_reason ?? null,
+          w.createdAt ?? null,
+          w.updatedAt ?? null,
+        ]
+      );
+    }
   } catch (err) {
     console.warn('[offlineDb] cacheWithdrawals failed:', err);
   }

@@ -122,10 +122,6 @@ const Login = () => {
                 </Button>
               </Form.Item>
             </Form>
-
-            <div className="login-hint">
-              Default credentials: admin@ewallet.com / Admin@123456
-            </div>
           </div>
         </div>
       </div>

@@ -95,4 +95,16 @@ async function getWithdrawals(req, res, next) {
     }
 }
 
-module.exports = { generateQR, getQRCode, getWallet, getTransactions, requestWithdrawal, getWithdrawals };
+/**
+ * GET /api/v1/merchant/stats
+ */
+async function getStats(req, res, next) {
+    try {
+        const stats = await transactionService.getMerchantStats(req.user.id);
+        return sendSuccess(res, { message: 'Merchant stats retrieved.', data: stats });
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { generateQR, getQRCode, getWallet, getTransactions, requestWithdrawal, getWithdrawals, getStats };

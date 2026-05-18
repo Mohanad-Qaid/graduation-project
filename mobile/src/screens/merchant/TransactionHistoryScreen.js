@@ -39,9 +39,9 @@ function getTxType(tx) {
 
 function getTxIcon(tx) {
     const t = getTxType(tx);
-    if (t === 'WITHDRAWAL') return { icon: 'bank-transfer-out', color: '#E65100', bg: '#FFF3E0' };
-    if (tx.isOutgoing)      return { icon: 'arrow-up',          color: '#C62828', bg: '#FFEBEE' };
-    return                         { icon: 'arrow-down',        color: '#2E7D32', bg: '#E8F5E9' };
+    if (t === 'WITHDRAWAL') return { icon: 'arrow-top-right',   color: '#E65100', bg: '#FFF3E0' };
+    if (tx.isOutgoing)      return { icon: 'arrow-top-right',   color: '#C62828', bg: '#FFEBEE' };
+    return                         { icon: 'arrow-bottom-left', color: '#2E7D32', bg: '#E8F5E9' };
 }
 
 function getTxTitle(tx) {
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     iconCircle: {
         width: 42,
         height: 42,
-        borderRadius: 21,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,

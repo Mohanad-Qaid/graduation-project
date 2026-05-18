@@ -24,6 +24,9 @@ router.get('/qr', controller.getQRCode);
 // GET  /api/v1/merchant/wallet
 router.get('/wallet', controller.getWallet);
 
+// GET  /api/v1/merchant/stats
+router.get('/stats', controller.getStats);
+
 // GET  /api/v1/merchant/transactions
 router.get('/transactions', paginationRules, validate, controller.getTransactions);
 

@@ -1,33 +1,15 @@
 'use strict';
 
-const geoip = require('geoip-lite');
 const { Op, fn, col } = require('sequelize');
 const { FraudFlag, Transaction, User, Wallet } = require('../models');
 const redisClient = require('../config/redis');
+const { getGeoLocation } = require('./geo.util');
 const logger = require('./logger.util');
 const { assessFraudWithFallback } = require('./groqFraud.util');
 
 const FRAUD_SCORE_THRESHOLD = parseInt(process.env.FRAUD_SCORE_THRESHOLD, 10) || 70;
 const LARGE_TXN_AMOUNT      = parseFloat(process.env.FRAUD_LARGE_TXN_AMOUNT) || 5000;
 const FRAUD_WINDOW_SECS     = 3600; // 1 hour
-
-// ─── IP resolver ──────────────────────────────────────────────────────────────
-
-/**
- * In development, Express always sees ::1 (IPv6 loopback) for local requests.
- * geoip-lite cannot resolve loopback addresses, so all geo data becomes null.
- * This helper substitutes a known public IP (Google DNS) so the geo lookup
- * succeeds during local development and testing.
- * Has NO effect in production (NODE_ENV !== 'development').
- *
- * @param {string} ip
- * @returns {string}
- */
-function resolveIp(ip) {
-    if (process.env.NODE_ENV !== 'development') return ip;
-    const loopbacks = ['::1', '127.0.0.1', '::ffff:127.0.0.1'];
-    return loopbacks.includes(ip) ? '8.8.8.8' : ip;
-}
 
 // ─── Heuristic fallback ───────────────────────────────────────────────────────
 
@@ -141,11 +123,10 @@ async function buildFraudContext({
 
     const isFirstTimeTransfer = receiverWalletId ? priorTxn === null : null;
 
-    // ── Geolocation (offline, no external API) ───────────────────────────────
-    // resolveIp() substitutes loopback with 8.8.8.8 in dev so geo is never null locally
+    // ── Geolocation (live API) ───────────────────────────────
     let transactionGeo = null;
     if (transactionIp) {
-        const geo = geoip.lookup(resolveIp(transactionIp));
+        const geo = await getGeoLocation(transactionIp);
         if (geo) transactionGeo = { country: geo.country, city: geo.city };
     }
 

@@ -7,7 +7,7 @@ import { Text, TextInput, ActivityIndicator } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { requestWithdrawal, clearError, clearWithdrawalSuccess } from '../../store/slices/transactionSlice';
-import { fetchBalance } from '../../store/slices/walletSlice';
+import { fetchMerchantDashboard } from '../../store/slices/walletSlice';
 
 const PURPLE_DARK  = '#1A006B';
 const PURPLE_MAIN  = '#4A148C';
@@ -42,7 +42,7 @@ const RequestWithdrawalScreen = ({ navigation }) => {
         }
         if (withdrawalSuccess) {
             dispatch(clearWithdrawalSuccess());
-            dispatch(fetchBalance()); // refresh dashboard balance immediately
+            dispatch(fetchMerchantDashboard()); // refresh dashboard stats and sync SQLite cache immediately
             navigation.navigate('Dashboard');
         }
     }, [error, withdrawalSuccess, dispatch, navigation]);

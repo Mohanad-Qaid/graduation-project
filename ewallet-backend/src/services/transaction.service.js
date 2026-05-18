@@ -217,6 +217,55 @@ async function getExpenseSummary(userId, period = 'month') {
 }
 
 /**
+ * Get revenue summary for a merchant (today and this week).
+ * Calculates total incoming PAYMENTs where merchant is the receiver.
+ * @param {string} userId 
+ */
+async function getMerchantStats(userId) {
+    const wallet = await Wallet.findOne({ where: { user_id: userId } });
+    if (!wallet) throw createHttpError(404, 'Wallet not found.');
+
+    const now = new Date();
+    
+    // Today range
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayRange = { [Op.gte]: startOfToday };
+
+    // This week range (last 7 days)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 7);
+    startOfWeek.setHours(0, 0, 0, 0);
+    const weekRange = { [Op.gte]: startOfWeek };
+
+    // Function to sum revenue for a date range
+    const getRevenue = async (dateRange) => {
+        const rows = await Transaction.findAll({
+            where: {
+                receiver_wallet_id: wallet.id,
+                transaction_type: 'PAYMENT',
+                status: 'COMPLETED',
+                createdAt: dateRange,
+            },
+            attributes: [
+                [sequelize.fn('SUM', sequelize.col('amount')), 'total'],
+                [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            ],
+            raw: true,
+        });
+        return {
+            total: Number(rows[0]?.total || 0),
+            count: Number(rows[0]?.count || 0),
+        };
+    };
+
+    const todayRevenue = await getRevenue(todayRange);
+    const weekRevenue = await getRevenue(weekRange);
+
+    return { todayRevenue, weekRevenue };
+}
+
+/**
  * Get all transactions (admin view, paginated).
  */
 async function getAllTransactions({ page = 1, limit = 50, type, status, startDate, endDate, minAmount, maxAmount }) {
@@ -290,4 +339,4 @@ async function getAllTransactions({ page = 1, limit = 50, type, status, startDat
     };
 }
 
-module.exports = { getTransactionHistory, getExpenseSummary, getAllTransactions };
+module.exports = { getTransactionHistory, getExpenseSummary, getAllTransactions, getMerchantStats };

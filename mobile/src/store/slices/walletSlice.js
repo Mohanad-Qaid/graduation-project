@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { updateCachedBalance } from '../../services/offlineDb';
+import { updateCachedBalance, syncWithdrawalNotifications } from '../../services/offlineDb';
 
 export const fetchBalance = createAsyncThunk(
   'wallet/fetchBalance',
@@ -35,14 +35,20 @@ export const fetchMerchantDashboard = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       // Fetch wallet balance, recent transactions, and withdrawal requests in parallel
-      const [walletRes, txRes, withdrawalRes] = await Promise.all([
+      const [walletRes, txRes, withdrawalRes, statsRes] = await Promise.all([
         api.get('/merchant/wallet'),
         api.get('/merchant/transactions?limit=5'),
         api.get('/merchant/withdrawal'),
+        // Catch the stats endpoint so if it fails, it doesn't crash the entire dashboard
+        api.get('/merchant/stats').catch(() => ({ data: { data: null } })),
       ]);
       const wallet = walletRes.data.data;
       const transactions = txRes.data.data ?? [];
       const withdrawals = withdrawalRes.data.data ?? [];
+      const stats = statsRes.data.data ?? { todayRevenue: { total: 0, count: 0 }, weekRevenue: { total: 0, count: 0 } };
+
+      // Sync comparison: generates SQLite notifications if any withdrawal status changed
+      syncWithdrawalNotifications(withdrawals).catch(() => { });
 
       // Sum only PENDING withdrawal requests to show locked/in-transit balance
       const pendingWithdrawal = withdrawals
@@ -54,13 +60,18 @@ export const fetchMerchantDashboard = createAsyncThunk(
         currency: wallet.currency,
         merchantStats: {
           pendingWithdrawal,
-          todayRevenue: { total: 0, count: 0 },
-          weekRevenue: { total: 0, count: 0 },
+          todayRevenue: stats.todayRevenue || { total: 0, count: 0 },
+          weekRevenue: stats.weekRevenue || { total: 0, count: 0 },
           recentTransactions: transactions.map((tx) => ({
             id: tx.id,
             amount: tx.amount,
             createdAt: tx.createdAt,
-            customerName: tx.counterparty || 'Customer',
+            customerName: tx.transaction_type === 'WITHDRAWAL'
+              ? 'Withdrawal to Bank'
+              : (tx.counterparty || 'Customer'),
+            type: tx.transaction_type,
+            isOutgoing: tx.sender_wallet_id === wallet.id,
+            status: tx.status,
           })),
         },
       };

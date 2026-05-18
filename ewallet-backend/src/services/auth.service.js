@@ -1,32 +1,12 @@
 'use strict';
 
 const bcrypt = require('bcrypt');
-const geoip = require('geoip-lite');
 const { User, Wallet, sequelize } = require('../models');
 const { generateAccessToken, generateRefreshToken, generateAdminAccessToken, generateAdminRefreshToken, verifyRefreshToken } = require('../utils/jwt.util');
+const { getGeoLocation } = require('../utils/geo.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const redisClient = require('../config/redis');
 const logger = require('../utils/logger.util');
-
-// Substitutes loopback and private LAN IPs with a real public IP in development
-// so geoip-lite can resolve a location. Has no effect in production.
-function resolveIp(ip) {
-    if (process.env.NODE_ENV !== 'development') return ip;
-    
-    // Strip the IPv6-mapped prefix if Node.js added it (e.g., ::ffff:192.168.1.5)
-    const cleanIp = ip.replace(/^::ffff:/, '');
-    
-    // Check if the IP belongs to localhost or any private network block
-    const isLocalOrPrivate = 
-        cleanIp === '127.0.0.1' || 
-        cleanIp === '::1' ||
-        cleanIp.startsWith('10.') || 
-        cleanIp.startsWith('192.168.') || 
-        cleanIp.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./);
-        
-    // Return mock public IP if local, otherwise return the actual IP
-    return isLocalOrPrivate ? (process.env.MOCK_GEO_IP || '8.8.8.8') : ip;
-}
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
@@ -48,14 +28,14 @@ async function register(dto) {
     try {
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Derive registration geolocation from IP (offline, no external API)
+        // Derive registration geolocation from IP via live API
         let registration_country = null;
         let registration_city = null;
         if (registrationIp) {
-            const geo = geoip.lookup(resolveIp(registrationIp));
+            const geo = await getGeoLocation(registrationIp);
             if (geo) {
-                registration_country = geo.country || null;
-                registration_city = geo.city || null;
+                registration_country = geo.country;
+                registration_city = geo.city;
             }
         }
 
@@ -194,6 +174,7 @@ async function login(dto) {
             first_name: user.first_name,
             last_name: user.last_name,
             business_name: user.business_name,
+            business_category: user.business_category,
             email: user.email,
             phone: user.phone,
             role: user.role,
@@ -210,7 +191,7 @@ async function login(dto) {
  */
 async function getMe(userId) {
     const user = await User.findByPk(userId, {
-        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status'],
+        attributes: ['id', 'first_name', 'last_name', 'business_name', 'business_category', 'email', 'phone', 'role', 'status'],
         include: [{ association: 'wallet', attributes: ['id', 'balance', 'currency'] }],
     });
     if (!user) throw createHttpError(404, 'User not found.');

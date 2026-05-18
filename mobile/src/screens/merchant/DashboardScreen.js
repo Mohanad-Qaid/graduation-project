@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchMerchantDashboard, clearError } from '../../store/slices/walletSlice';
 import { fetchTransactions } from '../../store/slices/transactionSlice';
@@ -59,11 +60,20 @@ const MerchantDashboard = ({ navigation }) => {
     } catch { /* SQLite may fail silently on Expo Go */ }
   }, []);
 
-  const loadData = useCallback(() => {
-    dispatch(fetchMerchantDashboard());
-    dispatch(fetchTransactions({ page: 1 }));
+  useFocusEffect(
+    useCallback(() => {
+      refreshUnread();
+    }, [refreshUnread])
+  );
+
+  const loadData = useCallback(async () => {
+    try {
+      await dispatch(fetchMerchantDashboard()).unwrap();
+      await dispatch(fetchTransactions({ page: 1 })).unwrap();
+    } catch {}
     refreshUnread();
   }, [dispatch, refreshUnread]);
+
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleDismissSnack = () => { setSnackVisible(false); dispatch(clearError()); };
@@ -203,23 +213,35 @@ const MerchantDashboard = ({ navigation }) => {
           {!merchantStats?.recentTransactions?.length ? (
             <View style={styles.emptyWrap}>
               <Icon name="inbox-outline" size={44} color="#CCC" />
-              <Text style={styles.emptyText}>No payments received yet</Text>
+              <Text style={styles.emptyText}>No transactions yet</Text>
             </View>
           ) : (
-            merchantStats.recentTransactions.map((tx) => (
-              <View key={tx.id} style={styles.txRow}>
-                <View style={styles.txIconWrap}>
-                  <Icon name="arrow-bottom-left" size={18} color="#2E7D32" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.txName}>{tx.customerName}</Text>
-                  <Text style={styles.txTime}>
-                    {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            merchantStats.recentTransactions.map((tx) => {
+              const isWithdrawal = tx.type === 'WITHDRAWAL';
+              const isOutgoing = tx.isOutgoing || isWithdrawal;
+              const iconName = isOutgoing ? 'arrow-top-right' : 'arrow-bottom-left';
+              const iconColor = isWithdrawal ? '#E65100' : (isOutgoing ? '#C62828' : '#2E7D32');
+              const iconBg = isWithdrawal ? '#FFF3E0' : (isOutgoing ? '#FFEBEE' : '#E8F5E9');
+              const amountColor = isWithdrawal ? '#E65100' : (isOutgoing ? '#C62828' : '#2E7D32');
+              const amountPrefix = isOutgoing ? '−' : '+';
+
+              return (
+                <View key={tx.id} style={styles.txRow}>
+                  <View style={[styles.txIconWrap, { backgroundColor: iconBg }]}>
+                    <Icon name={iconName} size={18} color={iconColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.txName}>{tx.customerName}</Text>
+                    <Text style={styles.txTime}>
+                      {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.txAmount, { color: amountColor }]}>
+                    {amountPrefix}{fmt(tx.amount)}
                   </Text>
                 </View>
-                <Text style={styles.txAmount}>+{fmt(tx.amount)}</Text>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
@@ -337,11 +359,11 @@ const styles = StyleSheet.create({
   },
   txIconWrap: {
     width: 38, height: 38, borderRadius: 12,
-    backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
   txName: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
   txTime: { fontSize: 12, color: '#ABABAB', marginTop: 2 },
-  txAmount: { fontSize: 15, fontWeight: '700', color: '#2E7D32' },
+  txAmount: { fontSize: 15, fontWeight: '700' },
   emptyWrap: { alignItems: 'center', paddingVertical: 28 },
   emptyText: { color: '#ABABAB', marginTop: 10, fontSize: 14 },
 });
