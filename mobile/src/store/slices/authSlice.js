@@ -7,26 +7,27 @@ import api from '../../services/api';
 import { clearCachedTransactions } from '../../services/offlineDb';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
-const KEY_TOKEN         = 'ewallet_token';
+const KEY_TOKEN = 'ewallet_token';
 const KEY_REFRESH_TOKEN = 'ewallet_refresh';
-const KEY_DEV_EMAIL     = 'ewallet_device_email';
+const KEY_DEV_EMAIL = 'ewallet_device_email';
 const KEY_DEV_FIRSTNAME = 'ewallet_device_firstname';
-const KEY_DEV_LASTNAME  = 'ewallet_device_lastname';
+const KEY_DEV_LASTNAME = 'ewallet_device_lastname';
+const KEY_LOCKOUT = 'ewallet_lockout';
 
 // ─── Helpers (all use SecureStore — already installed, works in Expo Go) ──────
 async function saveDeviceRegistration(user) {
-  const email     = user?.email ?? '';
+  const email = user?.email ?? '';
   const firstName = user?.first_name ?? user?.firstName ?? '';
-  const lastName  = user?.last_name  ?? user?.lastName  ?? '';
-  await SecureStore.setItemAsync(KEY_DEV_EMAIL,     email);
+  const lastName = user?.last_name ?? user?.lastName ?? '';
+  await SecureStore.setItemAsync(KEY_DEV_EMAIL, email);
   await SecureStore.setItemAsync(KEY_DEV_FIRSTNAME, firstName);
-  await SecureStore.setItemAsync(KEY_DEV_LASTNAME,  lastName);
+  await SecureStore.setItemAsync(KEY_DEV_LASTNAME, lastName);
 }
 
 async function loadDeviceRegistration() {
-  const email     = await SecureStore.getItemAsync(KEY_DEV_EMAIL);
+  const email = await SecureStore.getItemAsync(KEY_DEV_EMAIL);
   const firstName = await SecureStore.getItemAsync(KEY_DEV_FIRSTNAME);
-  const lastName  = await SecureStore.getItemAsync(KEY_DEV_LASTNAME);
+  const lastName = await SecureStore.getItemAsync(KEY_DEV_LASTNAME);
   return email ? { email, firstName, lastName } : null;
 }
 
@@ -34,6 +35,19 @@ async function clearDeviceRegistration() {
   await SecureStore.deleteItemAsync(KEY_DEV_EMAIL);
   await SecureStore.deleteItemAsync(KEY_DEV_FIRSTNAME);
   await SecureStore.deleteItemAsync(KEY_DEV_LASTNAME);
+}
+
+async function saveLockoutState(stateObj) {
+  await SecureStore.setItemAsync(KEY_LOCKOUT, JSON.stringify(stateObj));
+}
+
+async function loadLockoutState() {
+  const data = await SecureStore.getItemAsync(KEY_LOCKOUT);
+  return data ? JSON.parse(data) : { failCount: 0, lockoutUntil: null, isPermanentlyLocked: false };
+}
+
+async function clearLockoutState() {
+  await SecureStore.deleteItemAsync(KEY_LOCKOUT);
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -53,6 +67,7 @@ export const login = createAsyncThunk(
 
       return { token: accessToken, user };
     } catch (error) {
+      if (!error.response) return rejectWithValue('No Internet Connection. Please check your connection and try again.');
       return rejectWithValue(
         error.response?.data?.message || 'Login failed. Check your credentials.'
       );
@@ -65,7 +80,7 @@ export const login = createAsyncThunk(
 // Works for both Scenario A (soft lock) and Scenario B (hard logout).
 export const pinLogin = createAsyncThunk(
   'auth/pinLogin',
-  async ({ pin }, { rejectWithValue }) => {
+  async ({ pin }, { rejectWithValue, getState }) => {
     try {
       const device = await loadDeviceRegistration();
       if (!device?.email) {
@@ -83,11 +98,29 @@ export const pinLogin = createAsyncThunk(
       // Refresh device registration with latest server data
       await saveDeviceRegistration(user);
 
+      // Reset lockout state on success
+      await clearLockoutState();
+
       return { token: accessToken, user };
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Incorrect PIN. Please try again.'
-      );
+      let { failCount, lockoutUntil, isPermanentlyLocked } = getState().auth;
+      const isOffline = !error.response;
+
+      if (!isOffline) {
+        failCount += 1;
+        if (failCount === 3) lockoutUntil = Date.now() + 60 * 60 * 1000; // 1 hour lockout
+        if (failCount >= 6) isPermanentlyLocked = true; // Permanent block
+
+        await saveLockoutState({ failCount, lockoutUntil, isPermanentlyLocked });
+      }
+
+      return rejectWithValue({
+        message: isOffline ? 'No Internet Connection. Please check your connection and try again.' : (error.response?.data?.message || 'Incorrect PIN. Please try again.'),
+        isOffline,
+        failCount,
+        lockoutUntil,
+        isPermanentlyLocked
+      });
     }
   }
 );
@@ -114,27 +147,28 @@ export const loadUser = createAsyncThunk(
     // Always load device registration from AsyncStorage first.
     // This populates the "Welcome back" greeting even before the network call.
     const device = await loadDeviceRegistration();
+    const lockoutState = await loadLockoutState();
 
     try {
       const token = await SecureStore.getItemAsync(KEY_TOKEN);
       if (!token) {
         // No JWT — user is hard-logged-out. Show PinLockScreen if device is registered.
-        return { user: null, device };
+        return { user: null, device, lockoutState };
       }
       const response = await api.get('/auth/me');
       const user = response.data.data;
       // Refresh device registration with latest server data
       await saveDeviceRegistration(user);
-      return { user, device };
+      return { user, device, lockoutState };
     } catch (error) {
       const status = error?.response?.status;
       if (status === 401 || status === 403) {
         await SecureStore.deleteItemAsync(KEY_TOKEN);
         await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
-        return { user: null, device };
+        return { user: null, device, lockoutState };
       }
       // Network / 5xx — keep tokens, show offline mode
-      return rejectWithValue({ isNetworkError: true, device });
+      return rejectWithValue({ isNetworkError: true, device, lockoutState });
     }
   }
 );
@@ -170,6 +204,7 @@ export const wipeDevice = createAsyncThunk('auth/wipeDevice', async () => {
   await SecureStore.deleteItemAsync(KEY_TOKEN);
   await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
   await clearDeviceRegistration();
+  await clearLockoutState();
   try { await clearCachedTransactions(); } catch { /* SQLite may fail in Expo Go */ }
   return null;
 });
@@ -210,6 +245,7 @@ export const resetPin = createAsyncThunk(
   async ({ email, code, newPin }, { rejectWithValue }) => {
     try {
       await api.post('/auth/reset-password', { email, code, newPin });
+      await clearLockoutState(); // Ensure they are unlocked once they reset PIN
       return true;
     } catch (error) {
       const message = error.response?.data?.message || 'PIN reset failed.';
@@ -231,6 +267,8 @@ const authSlice = createSlice({
     registrationSuccess: false,
     isSessionLocked: false,
     failCount: 0,
+    lockoutUntil: null,
+    isPermanentlyLocked: false,
     isOffline: false,
     // Device registration (from AsyncStorage — reliable on Expo Go)
     cachedEmail: null,
@@ -274,9 +312,9 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         const u = action.payload.user;
-        state.cachedEmail     = u?.email ?? null;
+        state.cachedEmail = u?.email ?? null;
         state.cachedFirstName = u?.first_name ?? u?.firstName ?? null;
-        state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
+        state.cachedLastName = u?.last_name ?? u?.lastName ?? null;
       })
       .addCase(login.rejected, (state, action) => {
         state.isSubmitting = false;
@@ -296,14 +334,23 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         const u = action.payload.user;
-        state.cachedEmail     = u?.email ?? null;
+        state.cachedEmail = u?.email ?? null;
         state.cachedFirstName = u?.first_name ?? u?.firstName ?? null;
-        state.cachedLastName  = u?.last_name  ?? u?.lastName  ?? null;
+        state.cachedLastName = u?.last_name ?? u?.lastName ?? null;
       })
       .addCase(pinLogin.rejected, (state, action) => {
         state.isSubmitting = false;
-        state.failCount += 1;
-        state.error = action.payload;
+
+        if (typeof action.payload === 'object' && action.payload !== null) {
+          state.error = action.payload.message;
+          if (!action.payload.isOffline) {
+            state.failCount = action.payload.failCount;
+            state.lockoutUntil = action.payload.lockoutUntil;
+            state.isPermanentlyLocked = action.payload.isPermanentlyLocked;
+          }
+        } else {
+          state.error = action.payload || 'Incorrect PIN. Please try again.';
+        }
       })
 
       // ── Register ───────────────────────────────────────────────────────
@@ -325,38 +372,48 @@ const authSlice = createSlice({
       .addCase(loadUser.pending, (state) => { state.isBootstrapping = true; })
       .addCase(loadUser.fulfilled, (state, action) => {
         state.isBootstrapping = false;
-        const { user, device } = action.payload;
+        const { user, device, lockoutState } = action.payload;
 
         if (device) {
-          state.cachedEmail     = device.email     ?? null;
-          state.cachedFirstName = device.firstName ?? null;
-          state.cachedLastName  = device.lastName  ?? null;
+          state.cachedEmail = device.email;
+          state.cachedFirstName = device.firstName;
+          state.cachedLastName = device.lastName;
+        }
+
+        if (lockoutState) {
+          state.failCount = lockoutState.failCount;
+          state.lockoutUntil = lockoutState.lockoutUntil;
+          state.isPermanentlyLocked = lockoutState.isPermanentlyLocked;
         }
 
         if (user) {
           state.isAuthenticated = true;
           state.user = user;
-          state.isSessionLocked = true;
+          state.isSessionLocked = true; // E-wallets ALWAYS require PIN on cold start
         } else {
           state.isAuthenticated = false;
           state.user = null;
           state.token = null;
+          if (device) {
+            state.isSessionLocked = true;
+          }
         }
       })
       .addCase(loadUser.rejected, (state, action) => {
         state.isBootstrapping = false;
         if (action.payload?.isNetworkError) {
           state.isOffline = true;
-          const d = action.payload?.device;
-          if (d) {
-            state.cachedEmail     = d.email     ?? null;
-            state.cachedFirstName = d.firstName ?? null;
-            state.cachedLastName  = d.lastName  ?? null;
+          if (action.payload.device) {
+            state.cachedEmail = action.payload.device.email;
+            state.cachedFirstName = action.payload.device.firstName;
+            state.cachedLastName = action.payload.device.lastName;
+            state.isSessionLocked = true;
           }
-        } else {
-          state.isAuthenticated = false;
-          state.user = null;
-          state.token = null;
+          if (action.payload.lockoutState) {
+            state.failCount = action.payload.lockoutState.failCount;
+            state.lockoutUntil = action.payload.lockoutState.lockoutUntil;
+            state.isPermanentlyLocked = action.payload.lockoutState.isPermanentlyLocked;
+          }
         }
       })
 
@@ -369,8 +426,8 @@ const authSlice = createSlice({
         state.isSubmitting = false;
         state.user = { ...state.user, ...action.payload };
         state.cachedFirstName = action.payload.first_name ?? state.cachedFirstName;
-        state.cachedLastName  = action.payload.last_name  ?? state.cachedLastName;
-        state.cachedEmail     = action.payload.email      ?? state.cachedEmail;
+        state.cachedLastName = action.payload.last_name ?? state.cachedLastName;
+        state.cachedEmail = action.payload.email ?? state.cachedEmail;
       })
       .addCase(updateProfile.rejected, (state, action) => {
         state.isSubmitting = false;
@@ -395,11 +452,13 @@ const authSlice = createSlice({
         state.token = null;
         state.isAuthenticated = false;
         state.isSessionLocked = false;
-        state.failCount = 0;
-        state.isOffline = false;
         state.cachedEmail = null;
         state.cachedFirstName = null;
         state.cachedLastName = null;
+        state.failCount = 0;
+        state.lockoutUntil = null;
+        state.isPermanentlyLocked = false;
+        state.error = null;
       })
 
       // ── Send OTP ───────────────────────────────────────────────────────
@@ -442,6 +501,10 @@ const authSlice = createSlice({
       .addCase(resetPin.fulfilled, (state) => {
         state.otpLoading = false;
         state.otpSuccess = true;
+        // Also clear the in-memory lockout state so the UI unblocks immediately
+        state.failCount = 0;
+        state.lockoutUntil = null;
+        state.isPermanentlyLocked = false;
       })
       .addCase(resetPin.rejected, (state, action) => {
         state.otpLoading = false;
@@ -461,7 +524,7 @@ export const {
 
 // Convenience selector — screens that drive their own button spinner
 // use isSubmitting; RootNavigator uses isBootstrapping.
-export const selectIsSubmitting    = (state) => state.auth.isSubmitting;
+export const selectIsSubmitting = (state) => state.auth.isSubmitting;
 export const selectIsBootstrapping = (state) => state.auth.isBootstrapping;
 
 export default authSlice.reducer;
