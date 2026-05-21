@@ -43,7 +43,7 @@ const StatCard = ({ label, amount, count, iconName, iconColor, iconBg }) => (
 const MerchantDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const { balance, currency, merchantStats, isLoading, error } = useSelector((state) => state.wallet);
+  const { balance, currency, merchantStats, isLoading, error, isOfflineMode } = useSelector((state) => state.wallet);
 
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState('');
@@ -68,7 +68,11 @@ const MerchantDashboard = ({ navigation }) => {
 
   const loadData = useCallback(async () => {
     try {
-      await dispatch(fetchMerchantDashboard()).unwrap();
+      const res = await dispatch(fetchMerchantDashboard()).unwrap();
+      if (res?.isOfflineMode) {
+        setSnackMessage('No internet connection. Showing cached data.');
+        setSnackVisible(true);
+      }
       await dispatch(fetchTransactions({ page: 1 })).unwrap();
     } catch {}
     refreshUnread();
@@ -86,6 +90,9 @@ const MerchantDashboard = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+      
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadData} tintColor="#fff" />}

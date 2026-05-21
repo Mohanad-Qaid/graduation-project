@@ -7,6 +7,7 @@ import { Text, Divider } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { logout } from '../../store/slices/authSlice';
+import { formatCategory } from '../../utils/formatters';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -88,7 +89,7 @@ const ProfileScreen = () => {
             </View>
             <View style={styles.formField}>
               <Text style={styles.formLabel}>Business Category</Text>
-              <Text style={styles.formValue}>{user?.business_category || '—'}</Text>
+              <Text style={styles.formValue}>{formatCategory(user?.business_category)}</Text>
             </View>
             <View style={styles.formField}>
               <Text style={styles.formLabel}>Email Address</Text>

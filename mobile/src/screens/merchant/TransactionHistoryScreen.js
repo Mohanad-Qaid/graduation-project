@@ -13,15 +13,15 @@ const PURPLE_MAIN = '#4A148C';
 const PURPLE_LIGHT = '#6200EE';
 
 const TIME_OPTIONS = [
-    { label: 'All Time',      value: 'all' },
+    { label: 'All Time', value: 'all' },
     { label: 'Last 24 Hours', value: '24h' },
-    { label: 'Last Week',     value: 'week' },
-    { label: 'Last Month',    value: 'month' },
+    { label: 'Last Week', value: 'week' },
+    { label: 'Last Month', value: 'month' },
 ];
 
 const TYPE_OPTIONS = [
-    { label: 'All Types',  value: 'all' },
-    { label: 'Payment',    value: 'PAYMENT' },
+    { label: 'All Types', value: 'all' },
+    { label: 'Payment', value: 'PAYMENT' },
     { label: 'Withdrawal', value: 'WITHDRAWAL' },
 ];
 
@@ -39,9 +39,9 @@ function getTxType(tx) {
 
 function getTxIcon(tx) {
     const t = getTxType(tx);
-    if (t === 'WITHDRAWAL') return { icon: 'arrow-top-right',   color: '#E65100', bg: '#FFF3E0' };
-    if (tx.isOutgoing)      return { icon: 'arrow-top-right',   color: '#C62828', bg: '#FFEBEE' };
-    return                         { icon: 'arrow-bottom-left', color: '#2E7D32', bg: '#E8F5E9' };
+    if (t === 'WITHDRAWAL') return { icon: 'arrow-top-right', color: '#E65100', bg: '#FFF3E0' };
+    if (tx.isOutgoing) return { icon: 'arrow-top-right', color: '#C62828', bg: '#FFEBEE' };
+    return { icon: 'arrow-bottom-left', color: '#2E7D32', bg: '#E8F5E9' };
 }
 
 function getTxTitle(tx) {
@@ -52,8 +52,8 @@ function getTxTitle(tx) {
 function getTxAmountStyle(tx) {
     const t = getTxType(tx);
     if (t === 'WITHDRAWAL') return { color: '#E65100' };
-    if (tx.isOutgoing)      return { color: '#C62828' };
-    return                         { color: '#2E7D32' };
+    if (tx.isOutgoing) return { color: '#C62828' };
+    return { color: '#2E7D32' };
 }
 
 const TransactionCard = ({ tx, currency }) => {
@@ -66,9 +66,6 @@ const TransactionCard = ({ tx, currency }) => {
             <View style={styles.cardMiddle}>
                 <Text style={styles.cardTitle}>{getTxTitle(tx)}</Text>
                 <Text style={styles.cardDate}>{formatDate(tx.createdAt)}</Text>
-                {tx.reference_code ? (
-                    <Text style={styles.cardRef}>{tx.reference_code}</Text>
-                ) : null}
             </View>
             <Text style={[styles.cardAmount, getTxAmountStyle(tx)]}>
                 {(tx.isOutgoing || getTxType(tx) === 'WITHDRAWAL') ? '−' : '+'}
@@ -85,8 +82,8 @@ const TransactionHistoryScreen = ({ navigation }) => {
     );
     const { currency } = useSelector((state) => state.wallet);
 
-    const [timeFilter, setTimeFilter]           = useState('all');
-    const [typeFilter, setTypeFilter]           = useState('all');
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
     const [timeMenuVisible, setTimeMenuVisible] = useState(false);
     const [typeMenuVisible, setTypeMenuVisible] = useState(false);
 
@@ -243,9 +240,9 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 28,
         borderBottomRightRadius: 28,
     },
-    backBtn:     { marginRight: 14 },
+    backBtn: { marginRight: 14 },
     headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-    headerSub:   { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
 
     // Filter bar
     filterBar: {
@@ -271,11 +268,11 @@ const styles = StyleSheet.create({
         gap: 4,
         elevation: 1,
     },
-    filterChipActive:     { backgroundColor: '#EDE7F6', borderColor: PURPLE_LIGHT },
-    filterChipText:       { fontSize: 12, color: '#666', fontWeight: '500' },
+    filterChipActive: { backgroundColor: '#EDE7F6', borderColor: PURPLE_LIGHT },
+    filterChipText: { fontSize: 12, color: '#666', fontWeight: '500' },
     filterChipTextActive: { color: PURPLE_LIGHT, fontWeight: '600' },
-    menuItemActive:       { color: PURPLE_LIGHT, fontWeight: '700' },
-    clearBtn:             { fontSize: 12, color: PURPLE_LIGHT, fontWeight: '600' },
+    menuItemActive: { color: PURPLE_LIGHT, fontWeight: '700' },
+    clearBtn: { fontSize: 12, color: PURPLE_LIGHT, fontWeight: '600' },
 
     // List
     listContent: { paddingHorizontal: 16, paddingBottom: 32 },
@@ -302,16 +299,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: 12,
     },
-    cardMiddle:  { flex: 1 },
-    cardTitle:   { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
-    cardDate:    { fontSize: 12, color: '#9E9E9E', marginTop: 2 },
-    cardRef:     { fontSize: 10, color: '#BDBDBD', marginTop: 1 },
-    cardAmount:  { fontSize: 14, fontWeight: '700' },
+    cardMiddle: { flex: 1 },
+    cardTitle: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
+    cardDate: { fontSize: 12, color: '#9E9E9E', marginTop: 2 },
+    cardRef: { fontSize: 10, color: '#BDBDBD', marginTop: 1 },
+    cardAmount: { fontSize: 14, fontWeight: '700' },
 
     // Empty
     emptyContainer: { alignItems: 'center', paddingVertical: 60 },
-    emptyTitle:     { fontSize: 16, fontWeight: '700', color: '#4A148C', marginTop: 16 },
-    emptyText:      { fontSize: 13, color: '#9E9E9E', marginTop: 6, textAlign: 'center' },
+    emptyTitle: { fontSize: 16, fontWeight: '700', color: '#4A148C', marginTop: 16 },
+    emptyText: { fontSize: 13, color: '#9E9E9E', marginTop: 6, textAlign: 'center' },
 });
 
 export default TransactionHistoryScreen;

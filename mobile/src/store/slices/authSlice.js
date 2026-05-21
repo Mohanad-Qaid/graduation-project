@@ -104,11 +104,13 @@ export const pinLogin = createAsyncThunk(
       return { token: accessToken, user };
     } catch (error) {
       let { failCount, lockoutUntil, isPermanentlyLocked } = getState().auth;
-      const isOffline = !error.response;
+      // Because our global api.js interceptor attaches an artificial response,
+      // we must check the isNetworkError flags we added there.
+      const isOffline = !error.response || error.isNetworkError || error.response?.isNetworkError;
 
       if (!isOffline) {
         failCount += 1;
-        if (failCount === 3) lockoutUntil = Date.now() + 15; // 1 hour lockout
+        if (failCount === 3) lockoutUntil = Date.now() + 60 * 60 * 1000; // 1 hour lockout
         if (failCount >= 6) isPermanentlyLocked = true; // Permanent block
 
         await saveLockoutState({ failCount, lockoutUntil, isPermanentlyLocked });
@@ -239,12 +241,26 @@ export const verifyEmail = createAsyncThunk(
   }
 );
 
-// ─── OTP — Reset PIN (forgot-password final step) ────────────────────────────
+// ─── OTP — Verify Reset Code (Step 1 of reset) ───────────────────────────────
+export const verifyResetCode = createAsyncThunk(
+  'auth/verifyResetCode',
+  async ({ email, code }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/auth/verify-reset-code', { email, code });
+      return response.data.data.resetToken;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Verification failed.';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// ─── OTP — Reset PIN (Step 2 of reset) ───────────────────────────────────────
 export const resetPin = createAsyncThunk(
   'auth/resetPin',
-  async ({ email, code, newPin }, { rejectWithValue }) => {
+  async ({ resetToken, newPin }, { rejectWithValue }) => {
     try {
-      await api.post('/auth/reset-password', { email, code, newPin });
+      await api.post('/auth/reset-password', { resetToken, newPin });
       await clearLockoutState(); // Ensure they are unlocked once they reset PIN
       return true;
     } catch (error) {
@@ -488,6 +504,21 @@ const authSlice = createSlice({
         if (state.user) state.user = { ...state.user, email_verified: true };
       })
       .addCase(verifyEmail.rejected, (state, action) => {
+        state.otpLoading = false;
+        state.otpError = action.payload;
+      })
+
+      // ── Verify Reset Code ──────────────────────────────────────────────
+      .addCase(verifyResetCode.pending, (state) => {
+        state.otpLoading = true;
+        state.otpError = null;
+        state.otpSuccess = false;
+      })
+      .addCase(verifyResetCode.fulfilled, (state) => {
+        state.otpLoading = false;
+        state.otpSuccess = true;
+      })
+      .addCase(verifyResetCode.rejected, (state, action) => {
         state.otpLoading = false;
         state.otpError = action.payload;
       })

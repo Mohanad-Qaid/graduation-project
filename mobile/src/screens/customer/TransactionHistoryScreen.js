@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Text, Menu } from 'react-native-paper';
+import { Text, Menu, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { fetchTransactions } from '../../store/slices/transactionSlice';
+import { fetchTransactions, clearError } from '../../store/slices/transactionSlice';
 
 const PURPLE_DARK = '#1A006B';
 const PURPLE_MAIN = '#6200EE';
@@ -44,10 +44,9 @@ const formatDate = (iso) => {
 /* ── Transaction Row ── */
 const TxRow = ({ tx, currency }) => {
   const out = tx.isOutgoing;
-  const isTopup = (tx.type || '').toLowerCase() === 'topup';
   const accent = out ? '#EF5350' : '#26A69A';
   const bg = out ? '#FFEBEE' : '#E0F2F1';
-  const iconName = isTopup ? 'cash-plus' : out ? 'arrow-top-right' : 'arrow-bottom-left';
+  const iconName = out ? 'arrow-top-right' : 'arrow-bottom-left';
 
   return (
     <View style={styles.txRow}>
@@ -90,8 +89,23 @@ const FilterPill = ({ label, active, onPress }) => (
 /* ── Main Screen ── */
 const TransactionHistoryScreen = () => {
   const dispatch = useDispatch();
-  const { list: transactions, pagination, isLoading } = useSelector((s) => s.transactions);
+  const { list: transactions, pagination, isLoading, isOfflineMode, error } = useSelector((s) => s.transactions);
   const { currency } = useSelector((s) => s.wallet);
+
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMessage, setSnackMessage] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      setSnackMessage(error);
+      setSnackVisible(true);
+    }
+  }, [error]);
+
+  const handleDismissSnack = () => {
+    setSnackVisible(false);
+    dispatch(clearError());
+  };
 
   const [timeFilter, setTimeFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -99,7 +113,18 @@ const TransactionHistoryScreen = () => {
   const [typeMenuVisible, setTypeMenuVisible] = useState(false);
 
   const loadTransactions = useCallback((page = 1) => {
-    dispatch(fetchTransactions({ page }));
+    dispatch(fetchTransactions({ page }))
+      .unwrap()
+      .then((res) => {
+        if (page === 1 && res?.isOfflineMode) {
+          setSnackMessage('No internet connection. Showing cached data.');
+          setSnackVisible(true);
+        }
+      })
+      .catch((err) => {
+        setSnackMessage(err);
+        setSnackVisible(true);
+      });
   }, [dispatch]);
 
   useEffect(() => { loadTransactions(1); }, [loadTransactions]);
@@ -129,6 +154,8 @@ const TransactionHistoryScreen = () => {
 
   return (
     <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+      
       <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
 
       {/* ── Header Banner ── */}
@@ -213,6 +240,15 @@ const TransactionHistoryScreen = () => {
           </View>
         }
       />
+
+      <Snackbar
+        visible={snackVisible}
+        onDismiss={handleDismissSnack}
+        duration={3000}
+        action={{ label: 'Dismiss', onPress: handleDismissSnack }}
+      >
+        {snackMessage}
+      </Snackbar>
     </View>
   );
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { requestOTP, confirmEmailOTP, resetPassword } = require('../services/otp.service');
+const { requestOTP, confirmEmailOTP, verifyResetCode: verifyResetCodeService, resetPassword } = require('../services/otp.service');
 const { sendSuccess } = require('../utils/response.util');
 
 // POST /auth/send-otp
@@ -63,12 +63,27 @@ async function forgotPassword(req, res, next) {
     }
 }
 
+// POST /auth/verify-reset-code
+// Body: { email, code }
+async function verifyResetCode(req, res, next) {
+    try {
+        const { email, code } = req.body;
+        const resetToken = await verifyResetCodeService(email, code);
+        return sendSuccess(res, {
+            message: 'Code verified successfully.',
+            data: { resetToken },
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // POST /auth/reset-password
-// Body: { email, code, newPin }
+// Body: { resetToken, newPin }
 async function doResetPassword(req, res, next) {
     try {
-        const { email, code, newPin } = req.body;
-        await resetPassword(email, code, newPin);
+        const { resetToken, newPin } = req.body;
+        await resetPassword(resetToken, newPin);
         return sendSuccess(res, {
             message: 'PIN reset successfully. You can now log in with your new PIN.',
         });
@@ -77,4 +92,4 @@ async function doResetPassword(req, res, next) {
     }
 }
 
-module.exports = { sendOTP, resendOTP, verifyEmail, forgotPassword, doResetPassword };
+module.exports = { sendOTP, resendOTP, verifyEmail, forgotPassword, verifyResetCode, doResetPassword };

@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { syncWithdrawalNotifications, cacheTransactions, getCachedTransactions } from '../../services/offlineDb';
+import { syncWithdrawalNotifications, cacheTransactions, getCachedTransactions, getCachedWithdrawals } from '../../services/offlineDb';
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetch',
@@ -25,7 +25,7 @@ export const fetchTransactions = createAsyncThunk(
         const cached = await getCachedTransactions();
         if (cached && cached.length > 0) {
           console.log('[SQLite] Loaded transactions from offline cache!');
-          return { data: cached, meta: { total: cached.length, page: 1, limit: 20, totalPages: 1 }, page: 1 };
+          return { data: cached, meta: { total: cached.length, page: 1, limit: 20, totalPages: 1 }, page: 1, isOfflineMode: true };
         }
       } catch (dbErr) {
         console.warn('Failed to load cached transactions', dbErr);
@@ -100,6 +100,15 @@ export const fetchWithdrawals = createAsyncThunk(
       const response = await api.get('/merchant/withdrawal', { params: { page, limit: 20 } });
       return { ...response.data, page };
     } catch (error) {
+      try {
+        const cached = await getCachedWithdrawals();
+        if (cached && cached.length > 0) {
+          console.log('[SQLite] Loaded withdrawals from offline cache!');
+          return { data: cached, meta: { total: cached.length, page: 1, limit: 20, totalPages: 1 }, page: 1, isOfflineMode: true };
+        }
+      } catch (dbErr) {
+        console.warn('Failed to load cached withdrawals', dbErr);
+      }
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch withdrawals');
     }
   }
@@ -120,6 +129,7 @@ const transactionSlice = createSlice({
     error: null,
     paymentSuccess: false,
     withdrawalSuccess: false,
+    isOfflineMode: false,
   },
   reducers: {
     clearPaymentResult: (state) => {
@@ -150,6 +160,7 @@ const transactionSlice = createSlice({
           state.list = [...state.list, ...incoming];
         }
         state.pagination = action.payload.meta || null;
+        state.isOfflineMode = !!action.payload.isOfflineMode;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.isLoading = false;
@@ -214,9 +225,12 @@ const transactionSlice = createSlice({
           state.withdrawals = [...state.withdrawals, ...incoming];
         }
         state.withdrawalPagination = action.payload.meta || null;
+        state.isOfflineMode = !!action.payload.isOfflineMode;
         // Sync comparison: generates SQLite notifications if any withdrawal
         // changed from PENDING → APPROVED / REJECTED since last fetch.
-        syncWithdrawalNotifications(incoming).catch(() => {});
+        if (!state.isOfflineMode) {
+          syncWithdrawalNotifications(incoming).catch(() => {});
+        }
       })
       .addCase(fetchWithdrawals.rejected, (state, action) => {
         state.isLoading = false;

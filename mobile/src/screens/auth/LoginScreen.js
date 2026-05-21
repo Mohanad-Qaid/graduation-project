@@ -154,7 +154,7 @@ const LoginScreen = ({ navigation }) => {
               <View style={{ flex: 1 }}>
                 <Text style={styles.pendingTitle}>Account Under Review</Text>
                 <Text style={styles.pendingBody}>
-                  Your account is awaiting approval. You'll be notified once it's approved.
+                  Your account is awaiting approval.
                 </Text>
               </View>
             </View>

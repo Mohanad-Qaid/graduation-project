@@ -1,12 +1,12 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
     View, StyleSheet, FlatList, RefreshControl,
     TouchableOpacity, StatusBar,
 } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { fetchWithdrawals } from '../../store/slices/transactionSlice';
+import { fetchWithdrawals, clearError } from '../../store/slices/transactionSlice';
 
 const PURPLE_DARK = '#1A006B';
 const PURPLE_MAIN = '#4A148C';
@@ -113,12 +113,35 @@ function Row({ icon, label, value }) {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 const WithdrawalHistoryScreen = ({ navigation }) => {
     const dispatch = useDispatch();
-    const { withdrawals, withdrawalPagination, isLoading } = useSelector(
+    const { withdrawals, withdrawalPagination, isLoading, isOfflineMode, error } = useSelector(
         (state) => state.transactions
     );
 
+    const [snackVisible, setSnackVisible] = useState(false);
+    const [snackMessage, setSnackMessage] = useState('');
+
+    useEffect(() => {
+        if (error) {
+            setSnackMessage(error);
+            setSnackVisible(true);
+        }
+    }, [error]);
+
+    const handleDismissSnack = () => {
+        setSnackVisible(false);
+        dispatch(clearError());
+    };
+
     const load = useCallback((page = 1) => {
-        dispatch(fetchWithdrawals({ page }));
+        dispatch(fetchWithdrawals({ page }))
+            .unwrap()
+            .then((res) => {
+                if (page === 1 && res?.isOfflineMode) {
+                    setSnackMessage('No internet connection. Showing cached data.');
+                    setSnackVisible(true);
+                }
+            })
+            .catch(() => {});
     }, [dispatch]);
 
     useEffect(() => { load(1); }, [load]);
@@ -139,12 +162,14 @@ const WithdrawalHistoryScreen = ({ navigation }) => {
 
             {/* Hero Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Icon name="arrow-left" size={24} color="#fff" />
-                </TouchableOpacity>
-                <View>
-                    <Text style={styles.headerTitle}>Withdrawal History</Text>
-                    <Text style={styles.headerSub}>All your bank withdrawal requests</Text>
+                <View style={styles.headerRow}>
+                    <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                        <Icon name="arrow-left" size={24} color="#fff" />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerTitle}>Withdrawal History</Text>
+                        <Text style={styles.headerSub}>All your bank withdrawal requests</Text>
+                    </View>
                 </View>
             </View>
 
@@ -174,6 +199,15 @@ const WithdrawalHistoryScreen = ({ navigation }) => {
                     ) : null
                 }
             />
+
+            <Snackbar
+                visible={snackVisible}
+                onDismiss={handleDismissSnack}
+                duration={3000}
+                action={{ label: 'Dismiss', onPress: handleDismissSnack }}
+            >
+                {snackMessage}
+            </Snackbar>
         </View>
     );
 };
@@ -187,10 +221,12 @@ const styles = StyleSheet.create({
         paddingTop: 50,
         paddingHorizontal: 20,
         paddingBottom: 28,
-        flexDirection: 'row',
-        alignItems: 'center',
         borderBottomLeftRadius: 28,
         borderBottomRightRadius: 28,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     backBtn:     { marginRight: 14 },
     headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },

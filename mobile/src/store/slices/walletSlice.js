@@ -1,6 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { updateCachedBalance, syncWithdrawalNotifications } from '../../services/offlineDb';
+import { 
+  updateCachedBalance, 
+  syncWithdrawalNotifications,
+  getUserProfile,
+  getCachedTransactions,
+  getCachedWithdrawals
+} from '../../services/offlineDb';
 
 export const fetchBalance = createAsyncThunk(
   'wallet/fetchBalance',
@@ -12,6 +18,20 @@ export const fetchBalance = createAsyncThunk(
       // Backend response shape: { success, message, data: wallet }
       return response.data.data;
     } catch (error) {
+      // Offline fallback
+      try {
+        const cachedProfile = await getUserProfile();
+        if (cachedProfile && cachedProfile.last_known_balance !== undefined) {
+          console.log('[SQLite] Loaded balance from offline cache!');
+          return { 
+            balance: cachedProfile.last_known_balance, 
+            currency: 'TRY', // Defaulting to TRY, or could read from profile if added later
+            isOfflineMode: true 
+          };
+        }
+      } catch (dbErr) {
+        console.warn('Failed to load cached balance', dbErr);
+      }
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch balance');
     }
   }
@@ -76,6 +96,44 @@ export const fetchMerchantDashboard = createAsyncThunk(
         },
       };
     } catch (error) {
+      // Offline fallback
+      try {
+        const cachedProfile = await getUserProfile();
+        const cachedTx = await getCachedTransactions();
+        const cachedWithdrawals = await getCachedWithdrawals();
+        
+        if (cachedProfile) {
+          console.log('[SQLite] Loaded merchant dashboard from offline cache!');
+          
+          const pendingWithdrawal = (cachedWithdrawals || [])
+            .filter((w) => w.status === 'PENDING')
+            .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+            
+          return {
+            balance: cachedProfile.last_known_balance || 0,
+            currency: 'TRY',
+            isOfflineMode: true,
+            merchantStats: {
+              pendingWithdrawal,
+              todayRevenue: { total: 0, count: 0 },
+              weekRevenue: { total: 0, count: 0 },
+              recentTransactions: (cachedTx || []).slice(0, 5).map((tx) => ({
+                id: tx.id,
+                amount: tx.amount,
+                createdAt: tx.createdAt,
+                customerName: tx.transaction_type === 'WITHDRAWAL' || tx.type === 'WITHDRAWAL'
+                  ? 'Withdrawal to Bank'
+                  : (tx.counterparty || 'Customer'),
+                type: tx.transaction_type || tx.type,
+                isOutgoing: tx.isOutgoing,
+                status: tx.status,
+              })),
+            },
+          };
+        }
+      } catch (dbErr) {
+        console.warn('Failed to load cached merchant dashboard', dbErr);
+      }
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch dashboard');
     }
   }
@@ -90,6 +148,7 @@ const walletSlice = createSlice({
     isLoading: false,
     error: null,
     topUpSuccess: false,
+    isOfflineMode: false,
   },
   reducers: {
     updateBalance: (state, action) => {
@@ -112,8 +171,11 @@ const walletSlice = createSlice({
         const newBalance = parseFloat(action.payload.balance) || 0;
         state.balance = newBalance;
         state.currency = action.payload.currency || 'USD';
+        state.isOfflineMode = !!action.payload.isOfflineMode;
         // Persist to SQLite so the offline snapshot is always fresh
-        updateCachedBalance(newBalance);
+        if (!state.isOfflineMode) {
+          updateCachedBalance(newBalance);
+        }
       })
       .addCase(fetchBalance.rejected, (state, action) => {
         state.isLoading = false;
@@ -141,8 +203,11 @@ const walletSlice = createSlice({
         state.balance = newBalance;
         state.currency = action.payload.currency || 'TRY';
         state.merchantStats = action.payload.merchantStats;
+        state.isOfflineMode = !!action.payload.isOfflineMode;
         // Persist to SQLite so the offline snapshot is always fresh
-        updateCachedBalance(newBalance);
+        if (!state.isOfflineMode) {
+          updateCachedBalance(newBalance);
+        }
       })
       .addCase(fetchMerchantDashboard.rejected, (state, action) => {
         state.isLoading = false;

@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, Snackbar } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { PieChart, LineChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { fetchExpenseStats } from '../../store/slices/transactionSlice';
+import { fetchExpenseStats, clearError } from '../../store/slices/transactionSlice';
+import { formatCategory, formatChartCategory } from '../../utils/formatters';
 
 const { width } = Dimensions.get('window');
 const PURPLE_DARK = '#1A006B';
@@ -27,10 +28,24 @@ const PERIODS = [
 
 const ExpenseDashboardScreen = () => {
   const dispatch = useDispatch();
-  const { stats } = useSelector((state) => state.transactions);
+  const { stats, error } = useSelector((state) => state.transactions);
   const { currency } = useSelector((state) => state.wallet);
 
   const [period, setPeriod] = useState('month');
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMessage, setSnackMessage] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      setSnackMessage(error);
+      setSnackVisible(true);
+    }
+  }, [error]);
+
+  const handleDismissSnack = () => {
+    setSnackVisible(false);
+    dispatch(clearError());
+  };
 
   useEffect(() => {
     dispatch(fetchExpenseStats(period));
@@ -41,11 +56,11 @@ const ExpenseDashboardScreen = () => {
 
   const pieData =
     stats?.categoryBreakdown?.map((cat, i) => ({
-      name: cat.label,
+      name: formatCategory(cat.label),
       amount: Number(cat.value || 0),
       color: CHART_COLORS[i % CHART_COLORS.length],
       legendFontColor: '#666',
-      legendFontSize: 12,
+      legendFontSize: 11,
     })) || [];
 
   const lineData = {
@@ -163,16 +178,26 @@ const ExpenseDashboardScreen = () => {
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Spending by Category</Text>
           {pieData.length > 0 ? (
-            <PieChart
-              data={pieData}
-              width={width - 64}
-              height={180}
-              chartConfig={chartConfig}
-              accessor="amount"
-              backgroundColor="transparent"
-              paddingLeft="10"
-              style={styles.chart}
-            />
+            <View style={{ alignItems: 'center' }}>
+              <PieChart
+                data={pieData}
+                width={width - 40}
+                height={220}
+                chartConfig={chartConfig}
+                accessor="amount"
+                backgroundColor="transparent"
+                paddingLeft={((width - 40) / 4).toString()}
+                hasLegend={false}
+              />
+              <View style={styles.customLegend}>
+                {pieData.map((item, idx) => (
+                  <View key={idx} style={styles.legendItem}>
+                    <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                    <Text style={styles.legendText}>{item.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           ) : (
             <View style={styles.noData}>
               <Icon name="chart-pie" size={40} color="#DDD" />
@@ -201,7 +226,7 @@ const ExpenseDashboardScreen = () => {
             {
               icon: 'tag-outline',
               label: 'Top Category',
-              value: stats?.categoryBreakdown?.[0]?.label || 'N/A',
+              value: formatCategory(stats?.categoryBreakdown?.[0]?.label || 'N/A'),
             },
           ].map((s) => (
             <View key={s.label} style={styles.statRow}>
@@ -216,6 +241,15 @@ const ExpenseDashboardScreen = () => {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <Snackbar
+        visible={snackVisible}
+        onDismiss={handleDismissSnack}
+        duration={3000}
+        action={{ label: 'Dismiss', onPress: handleDismissSnack }}
+      >
+        {snackMessage}
+      </Snackbar>
     </View>
   );
 };
@@ -289,6 +323,10 @@ const styles = StyleSheet.create({
   chart: { borderRadius: 12 },
   noData: { height: 140, justifyContent: 'center', alignItems: 'center', gap: 8 },
   noDataText: { color: '#CCC', fontSize: 14 },
+  customLegend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', minWidth: '45%' },
+  legendColor: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
+  legendText: { fontSize: 12, color: '#555', flexShrink: 1 },
 
   /* stats */
   statsCard: {
@@ -304,8 +342,8 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10, backgroundColor: '#EDE7F6',
     justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  statLabel: { flex: 1, fontSize: 14, color: '#555' },
-  statValue: { fontSize: 14, fontWeight: '700', color: '#1A1A2E' },
+  statLabel: { flex: 1, fontSize: 14, color: '#555', marginRight: 8 },
+  statValue: { fontSize: 14, fontWeight: '700', color: '#1A1A2E', flexShrink: 1, textAlign: 'right' },
 });
 
 export default ExpenseDashboardScreen;

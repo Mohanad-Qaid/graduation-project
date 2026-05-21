@@ -111,12 +111,16 @@ const verifyEmailRules = [
         .withMessage('Code must be exactly 6 digits.'),
 ];
 
-const resetPasswordRules = [
+const verifyResetCodeRules = [
     body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
     body('code')
         .trim()
         .matches(/^\d{6}$/)
         .withMessage('Code must be exactly 6 digits.'),
+];
+
+const resetPasswordRules = [
+    body('resetToken').trim().notEmpty().withMessage('Reset token is required.'),
     body('newPin')
         .matches(/^\d{6}$/)
         .withMessage('New PIN must be exactly 6 digits.'),
@@ -145,6 +149,7 @@ module.exports = {
     paginationRules,
     sendOTPRules,
     verifyEmailRules,
+    verifyResetCodeRules,
     resetPasswordRules,
     forgotPasswordRules,
 };

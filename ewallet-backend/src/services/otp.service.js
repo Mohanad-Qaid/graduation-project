@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { User } = require('../models');
 const { saveOTP, verifyOTP, canResend, incrementResend } = require('../utils/otp.util');
@@ -60,9 +61,9 @@ async function confirmEmailOTP(email, code) {
 
     if (!result.valid) {
         const msgs = {
-            expired:      'Code has expired. Please request a new one.',
+            expired: 'Code has expired. Please request a new one.',
             max_attempts: 'Too many wrong attempts. Please request a new code.',
-            invalid:      `Incorrect code. ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? '' : 's'} remaining.`,
+            invalid: `Incorrect code. ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? '' : 's'} remaining.`,
         };
         throw createHttpError(400, msgs[result.reason] || 'Invalid code.');
     }
@@ -77,40 +78,71 @@ async function confirmEmailOTP(email, code) {
 // ── Reset Password ────────────────────────────────────────────────────────────
 
 /**
- * Verify OTP then update the user's PIN (password_hash).
- * Both the OTP check and the password update happen in the same call
- * so there is no "verified" window that can be exploited.
+ * Verify OTP and issue a 15-minute reset token.
  */
-async function resetPassword(email, code, newPin) {
+async function verifyResetCode(email, code) {
     const normalised = email.trim().toLowerCase();
+    const result = await verifyOTP(normalised, code);
 
+    if (!result.valid) {
+        const msgs = {
+            expired: 'Code has expired. Please request a new one.',
+            max_attempts: 'Too many wrong attempts. Please request a new code.',
+            invalid: `Incorrect code. ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? '' : 's'} remaining.`,
+        };
+        throw createHttpError(400, msgs[result.reason] || 'Invalid code.');
+    }
+
+    // OTP was correct. Generate a secure, temporary 15-minute reset token.
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    await redisClient.setex(`reset_token:${resetToken}`, 900, normalised);
+
+    return resetToken;
+}
+
+/**
+ * Update the user's PIN using the reset token.
+ */
+async function resetPassword(resetToken, newPin) {
     // Validate PIN format before touching Redis
     if (!/^\d{6}$/.test(newPin)) {
         throw createHttpError(400, 'PIN must be exactly 6 digits.');
     }
 
-    const result = await verifyOTP(normalised, code);
-
-    if (!result.valid) {
-        const msgs = {
-            expired:      'Code has expired. Please request a new one.',
-            max_attempts: 'Too many wrong attempts. Please request a new code.',
-            invalid:      `Incorrect code. ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? '' : 's'} remaining.`,
-        };
-        throw createHttpError(400, msgs[result.reason] || 'Invalid code.');
+    // Lookup token in Redis to find the associated email securely
+    const emailStr = await redisClient.get(`reset_token:${resetToken}`);
+    if (!emailStr) {
+        throw createHttpError(400, 'Your password reset session has expired. Please request a new code.');
     }
+    const normalised = emailStr;
 
     const user = await User.findOne({ where: { email: normalised } });
     if (!user) throw createHttpError(404, 'User not found.');
 
+    // Extract actual hash if the user was locked out
+    let actualHash = user.password_hash || '';
+    if (actualHash.startsWith('LOCKED:')) {
+        actualHash = actualHash.substring(7);
+    }
+
+    // Prevent reusing the same old PIN
+    if (actualHash) {
+        const isSamePin = await bcrypt.compare(newPin, actualHash);
+        if (isSamePin) {
+            // Do NOT delete the token here! Let them try again with a different PIN.
+            throw createHttpError(400, 'Your new PIN cannot be the same as your old PIN.');
+        }
+    }
+
     const password_hash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await user.update({ password_hash });
 
-    // Clear backend lockout states so the user can immediately log in
+    // Clear backend lockout states and delete the reset token (single-use)
     await redisClient.del(`login_attempts:${normalised}`);
     await redisClient.del(`login_lockout:${normalised}`);
+    await redisClient.del(`reset_token:${resetToken}`);
 
     logger.info(`Password reset for user ${user.id}`);
 }
 
-module.exports = { requestOTP, confirmEmailOTP, resetPassword };
+module.exports = { requestOTP, confirmEmailOTP, verifyResetCode, resetPassword };

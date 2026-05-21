@@ -6,7 +6,7 @@ import {
 import { Text, TextInput, ActivityIndicator } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { sendOTP, resetPin, clearOtpState } from '../../store/slices/authSlice';
+import { sendOTP, resetPin, clearOtpState, verifyResetCode } from '../../store/slices/authSlice';
 import OTPInput from '../../components/OTPInput';
 
 const PURPLE_DARK = '#1A006B';
@@ -64,6 +64,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     const [confirmPin, setConfirmPin] = useState('');
     const [pinError, setPinError] = useState('');
     const [localSuccess, setLocalSuccess] = useState(false);
+    const [resetToken, setResetToken] = useState('');
 
     const countdown = useCountdown(OTP_SECONDS, otpActive);
     const code = digits.join('');
@@ -111,11 +112,16 @@ const ForgotPasswordScreen = ({ navigation }) => {
             dispatch({ type: 'auth/sendOTP/rejected', payload: 'Code expired. Please request a new one.' });
             return;
         }
-        // We don't call verify-email here; OTP is verified atomically in reset-password.
-        // Just advance to step 3 with the code held in state.
-        dispatch(clearOtpState());
-        setStep(3);
-        setOtpActive(false);
+
+        const trimmedEmail = email.trim().toLowerCase();
+        const result = await dispatch(verifyResetCode({ email: trimmedEmail, code }));
+
+        if (result.meta.requestStatus === 'fulfilled') {
+            setResetToken(result.payload);
+            dispatch(clearOtpState());
+            setStep(3);
+            setOtpActive(false);
+        }
     };
 
     // ── Step 3 → Done ─────────────────────────────────────────────────────────
@@ -131,8 +137,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
         setPinError('');
         dispatch(clearOtpState());
         const result = await dispatch(resetPin({
-            email: email.trim().toLowerCase(),
-            code,
+            resetToken,
             newPin,
         }));
         if (result.meta.requestStatus === 'fulfilled') {

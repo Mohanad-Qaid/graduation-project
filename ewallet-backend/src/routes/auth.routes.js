@@ -8,7 +8,7 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authRateLimiter, otpRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     registerRules, loginRules,
-    sendOTPRules, verifyEmailRules, resetPasswordRules, forgotPasswordRules,
+    sendOTPRules, verifyEmailRules, verifyResetCodeRules, resetPasswordRules, forgotPasswordRules,
 } = require('../utils/validators.util');
 
 const router = Router();
@@ -42,8 +42,10 @@ router.post('/verify-email', otpRateLimiter, verifyEmailRules, validate, otpCont
 // Send reset OTP (checks email exists + is verified)
 router.post('/forgot-password', otpRateLimiter, forgotPasswordRules, validate, otpController.forgotPassword);
 
-// Verify OTP + set new PIN
-router.post('/reset-password', otpRateLimiter, resetPasswordRules, validate, otpController.doResetPassword);
+// Verify OTP + return 15-minute reset token
+router.post('/verify-reset-code', otpRateLimiter, verifyResetCodeRules, validate, otpController.verifyResetCode);
+
+// Complete Password Reset using the reset token
+router.post('/reset-password', authRateLimiter, resetPasswordRules, validate, otpController.doResetPassword);
 
 module.exports = router;
-

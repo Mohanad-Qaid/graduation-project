@@ -61,6 +61,23 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Intercept network-level errors (no response from server)
+    if (!error.response) {
+      let customMessage = 'Unable to reach the server. Please try again later.';
+      if (error.code === 'ECONNABORTED') {
+        customMessage = 'Request timed out. Please try again.';
+      } else if (error.message === 'Network Error') {
+        customMessage = 'No internet connection. Please check your network and try again.';
+      }
+      
+      // Artificially construct a response so Redux slices can seamlessly read the message
+      error.isNetworkError = true;
+      error.response = { 
+        data: { message: customMessage, error: customMessage },
+        isNetworkError: true
+      };
+    }
+
     const originalRequest = error.config;
 
     // Do not attempt to refresh if the 401 came from a public path (like login)

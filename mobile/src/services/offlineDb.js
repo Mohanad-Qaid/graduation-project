@@ -23,7 +23,8 @@ async function getDatabase() {
         description TEXT,
         status      TEXT,
         createdAt   TEXT,
-        synced      INTEGER DEFAULT 0
+        synced      INTEGER DEFAULT 0,
+        isOutgoing  INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS user_profile (
@@ -61,6 +62,20 @@ async function getDatabase() {
       );
     `);
 
+    try {
+      await db.execAsync(`ALTER TABLE transactions ADD COLUMN isOutgoing INTEGER DEFAULT 0;`);
+    } catch (e) {
+      // Column might already exist, ignore
+    }
+
+    try {
+      await db.execAsync(`ALTER TABLE transactions ADD COLUMN category TEXT;`);
+    } catch (e) {}
+
+    try {
+      await db.execAsync(`ALTER TABLE transactions ADD COLUMN referenceCode TEXT;`);
+    } catch (e) {}
+
     console.log('[offlineDb] Database ready.');
   } catch (err) {
     console.error('[offlineDb] Failed to initialise database:', err);
@@ -84,8 +99,8 @@ export async function cacheTransactions(transactions) {
     for (const tx of transactions) {
       await database.runAsync(
         `INSERT OR REPLACE INTO transactions
-          (id, type, amount, counterparty, description, status, createdAt, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+          (id, type, amount, counterparty, description, status, createdAt, synced, isOutgoing, category, referenceCode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
           tx.id,
           tx.transaction_type || tx.type,
@@ -94,6 +109,9 @@ export async function cacheTransactions(transactions) {
           tx.description ?? null,
           tx.status ?? null,
           tx.createdAt ?? null,
+          tx.isOutgoing ? 1 : 0,
+          tx.category ?? null,
+          tx.referenceCode ?? null,
         ]
       );
     }
@@ -113,7 +131,10 @@ export async function getCachedTransactions() {
     const rows = await database.getAllAsync(
       'SELECT * FROM transactions ORDER BY createdAt DESC'
     );
-    return rows;
+    return rows.map(r => ({
+      ...r,
+      isOutgoing: r.isOutgoing === 1
+    }));
   } catch (err) {
     console.warn('[offlineDb] getCachedTransactions failed:', err);
     return [];
@@ -130,8 +151,8 @@ export async function saveOfflineTransaction(transaction) {
     const database = await getDatabase();
     await database.runAsync(
       `INSERT OR REPLACE INTO transactions
-        (id, type, amount, counterparty, description, status, createdAt, synced)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        (id, type, amount, counterparty, description, status, createdAt, synced, isOutgoing, category, referenceCode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
       [
         transaction.id || `offline_${Date.now()}`,
         transaction.type,
@@ -140,6 +161,9 @@ export async function saveOfflineTransaction(transaction) {
         transaction.description ?? null,
         transaction.status ?? 'PENDING',
         transaction.createdAt ?? new Date().toISOString(),
+        transaction.isOutgoing ? 1 : 0,
+        transaction.category ?? null,
+        transaction.referenceCode ?? null,
       ]
     );
   } catch (err) {
@@ -154,9 +178,13 @@ export async function saveOfflineTransaction(transaction) {
 export async function getPendingTransactions() {
   try {
     const database = await getDatabase();
-    return await database.getAllAsync(
+    const rows = await database.getAllAsync(
       'SELECT * FROM transactions WHERE synced = 0 ORDER BY createdAt DESC'
     );
+    return rows.map(r => ({
+      ...r,
+      isOutgoing: r.isOutgoing === 1
+    }));
   } catch (err) {
     console.warn('[offlineDb] getPendingTransactions failed:', err);
     return [];

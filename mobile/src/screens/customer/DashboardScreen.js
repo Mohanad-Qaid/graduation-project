@@ -75,12 +75,16 @@ const DashboardScreen = ({ navigation }) => {
     currency,
     isLoading: walletLoading,
     error: walletError,
+    isOfflineMode: walletOffline,
   } = useSelector((s) => s.wallet);
   const {
     list: transactions,
     isLoading: txLoading,
     error: txError,
+    isOfflineMode: txOffline,
   } = useSelector((s) => s.transactions);
+
+  const isOfflineMode = walletOffline || txOffline;
 
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState('');
@@ -103,7 +107,15 @@ const DashboardScreen = ({ navigation }) => {
   }, [walletError, txError]);
 
   const loadData = useCallback(() => {
-    dispatch(fetchBalance());
+    dispatch(fetchBalance())
+      .unwrap()
+      .then((res) => {
+        if (res?.isOfflineMode) {
+          setSnackMessage('No internet connection. Showing cached data.');
+          setSnackVisible(true);
+        }
+      })
+      .catch(() => { });
     dispatch(fetchTransactions({ page: 1 }));
   }, [dispatch]);
 
