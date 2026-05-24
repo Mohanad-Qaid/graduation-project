@@ -9,6 +9,7 @@ const {
     userIdParamRules,
     adminTopUpRules,
     rejectReasonRules,
+    requiredReasonRules,
     paginationRules,
 } = require('../utils/validators.util');
 
@@ -25,9 +26,9 @@ router.get('/revenue', controller.getPlatformRevenue);
 router.get('/users', paginationRules, validate, controller.getAllUsers);
 router.get('/users/pending', controller.getPendingUsers);
 router.patch('/users/:userId/approve',     userIdParamRules, validate, controller.approveUser);
-router.patch('/users/:userId/reject',      [...userIdParamRules, ...rejectReasonRules], validate, controller.rejectUser);
-router.patch('/users/:userId/suspend',     [...userIdParamRules, ...rejectReasonRules], validate, controller.suspendUser);
-router.patch('/users/:userId/reactivate',  userIdParamRules, validate, controller.reactivateUser);
+router.patch('/users/:userId/reject',      [...userIdParamRules, ...requiredReasonRules], validate, controller.rejectUser);
+router.patch('/users/:userId/suspend',     [...userIdParamRules, ...requiredReasonRules], validate, controller.suspendUser);
+router.patch('/users/:userId/reactivate',  [...userIdParamRules, ...requiredReasonRules], validate, controller.reactivateUser);
 
 // ─── Top-up ───────────────────────────────────────────────────────────────────
 router.post('/users/:userId/topup', adminTopUpRules, validate, controller.adminTopUp);
@@ -38,7 +39,7 @@ router.get('/transactions', paginationRules, validate, controller.getAllTransact
 // ─── Withdrawals ──────────────────────────────────────────────────────────────
 router.get('/withdrawals', paginationRules, validate, controller.listWithdrawals);
 router.patch('/withdrawals/:requestId/approve', controller.approveWithdrawal);
-router.patch('/withdrawals/:requestId/reject', rejectReasonRules, validate, controller.rejectWithdrawal);
+router.patch('/withdrawals/:requestId/reject', requiredReasonRules, validate, controller.rejectWithdrawal);
 
 // ─── Fraud Flags ──────────────────────────────────────────────────────────────
 router.get('/fraud-flags', paginationRules, validate, controller.getFraudFlags);

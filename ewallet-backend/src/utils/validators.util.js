@@ -94,6 +94,16 @@ const rejectReasonRules = [
     body('reason').optional().trim().isLength({ max: 500 }),
 ];
 
+// Used for destructive actions where a reason is mandatory (reject, suspend, reactivate)
+const requiredReasonRules = [
+    body('reason')
+        .trim()
+        .notEmpty()
+        .withMessage('A reason is required for this action.')
+        .isLength({ max: 500 })
+        .withMessage('Reason must be 500 characters or fewer.'),
+];
+
 // ─── OTP ──────────────────────────────────────────────────────────────────────
 
 const sendOTPRules = [
@@ -146,6 +156,7 @@ module.exports = {
     userIdParamRules,
     adminTopUpRules,
     rejectReasonRules,
+    requiredReasonRules,
     paginationRules,
     sendOTPRules,
     verifyEmailRules,

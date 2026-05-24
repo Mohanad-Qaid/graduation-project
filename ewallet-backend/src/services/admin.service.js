@@ -55,7 +55,7 @@ async function getAllUsers({ page = 1, limit = 50, role, status, search }) {
         where,
         limit,
         offset,
-        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'email_verified', 'createdAt'],
+        attributes: ['id', 'first_name', 'last_name', 'business_name', 'business_category', 'email', 'phone', 'role', 'status', 'email_verified', 'createdAt'],
         order: [['createdAt', 'DESC']],
     });
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), users: rows };

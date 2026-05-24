@@ -1,48 +1,61 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import {
-  Table, Card, Typography, Tag, Button, Select, Space,
-  Modal, message, Row, Col, InputNumber, Input, Tooltip,
+  Table, Button, Tag, Space, Card, Input, Select,
+  Modal, InputNumber, message, Tooltip, Typography,
 } from 'antd';
 import {
-  ShopOutlined, UserOutlined, StopOutlined,
-  CheckCircleOutlined, WalletOutlined, SearchOutlined,
-  RollbackOutlined,
+  SearchOutlined, StopOutlined, CheckCircleOutlined,
+  DollarOutlined, UserOutlined, ShopOutlined,
 } from '@ant-design/icons';
 import { fetchUsers, suspendUser, activateUser, topupUser } from '../store/slices/usersSlice';
+import ConfirmActionModal from '../components/ConfirmActionModal';
 import dayjs from 'dayjs';
 
-const { Title } = Typography;
 const { TextArea } = Input;
 
 const statusColors = {
-  APPROVED: 'success',
-  PENDING: 'warning',
-  SUSPENDED: 'error',
-  REJECTED: 'default',
+  APPROVED:  'success',
+  PENDING:   'warning',
+  REJECTED:  'error',
+  SUSPENDED: 'default',
 };
 
 const UserManagement = () => {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { list, pagination, isLoading } = useSelector((state) => state.users);
 
-  const [filters, setFilters] = useState({ role: null, status: null, page: 1, search: '' });
-  const [searchInput, setSearchInput] = useState('');
-  const [suspendModal, setSuspendModal] = useState({ visible: false, userId: null });
-  const [suspendReason, setSuspendReason] = useState('');
+  // Read ?search= URL param (set by SuspiciousTransactions "View in User Management" link)
+  const urlSearch = new URLSearchParams(location.search).get('search') || '';
+
+  const [searchInput, setSearchInput] = useState(urlSearch);
+  const [filters, setFilters] = useState({
+    role: null, status: null, page: 1, search: urlSearch,
+  });
+
+  // Unified action modal (suspend / reactivate / re-approve)
+  const [actionModal, setActionModal] = useState({
+    visible: false, type: null, userId: null, userName: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Top-up modal state (kept separate — needs extra numeric field)
   const [topupModal, setTopupModal] = useState({ visible: false, userId: null, userName: '' });
   const [topupAmount, setTopupAmount] = useState(null);
   const [topupDesc, setTopupDesc] = useState('');
+  const [isTopupSubmitting, setIsTopupSubmitting] = useState(false);
 
   useEffect(() => {
-    const params = { page: filters.page, limit: 20 };
+    const params = { page: filters.page, limit: 50 };
     if (filters.role) params.role = filters.role;
     if (filters.status) params.status = filters.status;
     if (filters.search) params.search = filters.search;
     dispatch(fetchUsers(params));
   }, [dispatch, filters]);
 
-  // Debounce search: wait 400ms after user stops typing
+  // Debounce search
   const debounceRef = React.useRef(null);
   const handleSearchChange = (e) => {
     const val = e.target.value;
@@ -57,92 +70,112 @@ const UserManagement = () => {
     setFilters((prev) => ({ ...prev, search: val, page: 1 }));
   };
 
-  const handleSuspend = async () => {
-    try {
-      await dispatch(suspendUser({ userId: suspendModal.userId, reason: suspendReason })).unwrap();
-      message.success('User suspended successfully');
-      setSuspendModal({ visible: false, userId: null });
-      setSuspendReason('');
-      dispatch(fetchUsers({ page: filters.page, limit: 20 }));
-    } catch (error) {
-      message.error(error);
-    }
-  };
-
-  const handleActivate = async (userId) => {
-    Modal.confirm({
-      title: 'Re-Activate User',
-      content: 'This will set the user status back to Approved.',
-      okText: 'Yes, Reactivate',
-      onOk: async () => {
-        try {
-          await dispatch(activateUser(userId)).unwrap();
-          message.success('User reactivated successfully');
-          dispatch(fetchUsers({ page: filters.page, limit: 20 }));
-        } catch (error) {
-          message.error(error);
-        }
-      },
+  const openActionModal = (type, record) => {
+    setActionModal({
+      visible: true,
+      type,
+      userId: record.id,
+      userName: `${record.first_name} ${record.last_name}`,
     });
   };
 
-  const handleTopup = async () => {
-    if (!topupAmount || topupAmount <= 0) {
-      message.error('Please enter a valid amount');
-      return;
-    }
+  const closeActionModal = () => {
+    setActionModal({ visible: false, type: null, userId: null, userName: '' });
+  };
+
+  const refreshUsers = useCallback(() => {
+    const params = { page: filters.page, limit: 50 };
+    if (filters.role) params.role = filters.role;
+    if (filters.status) params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    dispatch(fetchUsers(params));
+  }, [dispatch, filters]);
+
+  const handleActionConfirm = async (comment) => {
+    setIsSubmitting(true);
     try {
-      await dispatch(topupUser({ userId: topupModal.userId, amount: topupAmount, description: topupDesc || undefined })).unwrap();
-      message.success('Wallet topped up successfully');
-      setTopupModal({ visible: false, userId: null, userName: '' });
-      setTopupAmount(null);
-      setTopupDesc('');
-      dispatch(fetchUsers({ page: filters.page, limit: 20 }));
+      if (actionModal.type === 'suspend') {
+        await dispatch(suspendUser({ userId: actionModal.userId, reason: comment })).unwrap();
+        message.success('User suspended successfully.');
+      } else {
+        // 'reactivate' and 'reapprove' both call activateUser — same backend endpoint
+        await dispatch(activateUser({ userId: actionModal.userId, reason: comment })).unwrap();
+        message.success('User account approved and activated.');
+      }
+      closeActionModal();
+      refreshUsers();
     } catch (error) {
-      message.error(error);
+      message.error(error || 'Something went wrong. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // Top-up handlers
+  const openTopupModal = (record) => {
+    setTopupModal({ visible: true, userId: record.id, userName: `${record.first_name} ${record.last_name}` });
+    setTopupAmount(null);
+    setTopupDesc('');
+  };
+
+  const closeTopupModal = () => {
+    setTopupModal({ visible: false, userId: null, userName: '' });
+  };
+
+  const handleTopupConfirm = async () => {
+    if (!topupAmount || topupAmount < 100) {
+      message.error('Minimum top-up amount is 100 TRY.');
+      return;
+    }
+    setIsTopupSubmitting(true);
+    try {
+      await dispatch(topupUser({
+        userId: topupModal.userId,
+        amount: topupAmount,
+        description: topupDesc || `Admin top-up of ${topupAmount} TRY`,
+      })).unwrap();
+      message.success(`Wallet topped up by ${topupAmount} TRY.`);
+      closeTopupModal();
+      refreshUsers();
+    } catch (error) {
+      message.error(error || 'Top-up failed. Please try again.');
+    } finally {
+      setIsTopupSubmitting(false);
+    }
+  };
+
+  const isSuspend   = actionModal.type === 'suspend';
+  const isReapprove = actionModal.type === 'reapprove';
+
   const columns = [
-    {
-      title: 'User',
-      key: 'user',
-      render: (_, record) => (
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: record.role === 'MERCHANT' ? '#E1BEE7' : '#BBDEFB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 10,
-              flexShrink: 0,
-            }}
-          >
-            {record.role === 'MERCHANT' ? (
-              <ShopOutlined style={{ color: '#7B1FA2' }} />
-            ) : (
-              <UserOutlined style={{ color: '#1976D2' }} />
-            )}
-          </div>
-          <div>
-            <div style={{ fontWeight: 500 }}>{`${record.first_name} ${record.last_name}`}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>{record.email}</div>
-            <div style={{ fontSize: 11, color: '#bbb' }}>{record.phone}</div>
-          </div>
-        </div>
-      ),
-    },
     {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
       render: (role) => (
-        <Tag color={role === 'MERCHANT' ? 'purple' : 'blue'}>{role}</Tag>
+        <Tag
+          icon={role === 'MERCHANT' ? <ShopOutlined /> : <UserOutlined />}
+          color={role === 'MERCHANT' ? 'purple' : 'blue'}
+        >
+          {role}
+        </Tag>
       ),
+    },
+    {
+      title: 'Name',
+      key: 'name',
+      render: (_, record) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{`${record.first_name} ${record.last_name}`}</div>
+          <div style={{ fontSize: 12, color: '#999' }}>{record.email}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Phone',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (phone) => phone || '—',
     },
     {
       title: 'Status',
@@ -153,12 +186,24 @@ const UserManagement = () => {
       ),
     },
     {
-      title: 'Email',
-      dataIndex: 'email_verified',
-      key: 'email_verified',
-      render: (verified) => verified
-        ? <Tag color="success" icon={<CheckCircleOutlined />}>Verified</Tag>
-        : <Tag color="default">Unverified</Tag>,
+      title: 'Business',
+      key: 'business',
+      render: (_, record) => {
+        if (record.role !== 'MERCHANT') return <span style={{ color: '#bbb' }}>—</span>;
+        return (
+          <div>
+            {record.business_name && (
+              <div style={{ fontWeight: 500, fontSize: 13 }}>{record.business_name}</div>
+            )}
+            {record.business_category && (
+              <Tag color="purple" style={{ marginTop: 2 }}>{record.business_category}</Tag>
+            )}
+            {!record.business_name && !record.business_category && (
+              <span style={{ color: '#bbb' }}>—</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Joined',
@@ -170,54 +215,60 @@ const UserManagement = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space>
-          {/* APPROVED → can suspend */}
-          {record.status === 'APPROVED' && (
-            <Button
-              danger
-              icon={<StopOutlined />}
-              size="small"
-              onClick={() => setSuspendModal({ visible: true, userId: record.id })}
-            >
-              Suspend
-            </Button>
-          )}
-
-          {/* SUSPENDED → can reactivate */}
-          {record.status === 'SUSPENDED' && (
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              size="small"
-              onClick={() => handleActivate(record.id)}
-            >
-              Reactivate
-            </Button>
-          )}
-
-          {/* REJECTED → can re-approve */}
-          {record.status === 'REJECTED' && (
-            <Tooltip title="Re-approve this rejected account">
+        <Space wrap>
+          {/* Top-Up — customers only */}
+          {record.role === 'CUSTOMER' && record.status === 'APPROVED' && (
+            <Tooltip title="Add funds to wallet">
               <Button
-                type="default"
-                icon={<RollbackOutlined />}
                 size="small"
-                onClick={() => handleActivate(record.id)}
+                icon={<DollarOutlined />}
+                onClick={() => openTopupModal(record)}
               >
-                Re-Approve
+                Top-Up
               </Button>
             </Tooltip>
           )}
 
-          {/* Top-Up only for APPROVED users */}
+          {/* Suspend — approved users */}
           {record.status === 'APPROVED' && (
-            <Button
-              icon={<WalletOutlined />}
-              size="small"
-              onClick={() => setTopupModal({ visible: true, userId: record.id, userName: `${record.first_name} ${record.last_name}` })}
-            >
-              Top-Up
-            </Button>
+            <Tooltip title="Suspend this account">
+              <Button
+                size="small"
+                danger
+                icon={<StopOutlined />}
+                onClick={() => openActionModal('suspend', record)}
+              >
+                Suspend
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* Reactivate — suspended users */}
+          {record.status === 'SUSPENDED' && (
+            <Tooltip title="Restore account access">
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={() => openActionModal('reactivate', record)}
+              >
+                Reactivate
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* Re-Approve — rejected users */}
+          {record.status === 'REJECTED' && (
+            <Tooltip title="Approve this previously rejected account">
+              <Button
+                size="small"
+                type="default"
+                icon={<CheckCircleOutlined />}
+                onClick={() => openActionModal('reapprove', record)}
+              >
+                Re-Approve
+              </Button>
+            </Tooltip>
           )}
         </Space>
       ),
@@ -226,51 +277,45 @@ const UserManagement = () => {
 
   return (
     <div>
-      <h2 className="page-title" style={{ marginBottom: 24 }}>User Management</h2>
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <h2 className="page-title">User Management</h2>
+      </div>
 
+      {/* Filters */}
       <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          {/* Search bar — full width on small, grows on larger screens */}
-          <Col xs={24} md={12}>
-            <Input
-              prefix={<SearchOutlined style={{ color: '#aaa' }} />}
-              placeholder="Search by name, email or phone…"
-              value={searchInput}
-              onChange={handleSearchChange}
-              onPressEnter={(e) => handleSearchSubmit(e.target.value)}
-              allowClear
-              onClear={() => handleSearchSubmit('')}
-              size="middle"
-            />
-          </Col>
-
-          <Col xs={24} sm={12} md={6}>
-            <Select
-              placeholder="Filter by Role"
-              value={filters.role}
-              onChange={(value) => setFilters({ ...filters, role: value, page: 1 })}
-              allowClear
-              style={{ width: '100%' }}
-            >
-              <Select.Option value="CUSTOMER">Customer</Select.Option>
-              <Select.Option value="MERCHANT">Merchant</Select.Option>
-            </Select>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Select
-              placeholder="Filter by Status"
-              value={filters.status}
-              onChange={(value) => setFilters({ ...filters, status: value, page: 1 })}
-              allowClear
-              style={{ width: '100%' }}
-            >
-              <Select.Option value="APPROVED">Approved</Select.Option>
-              <Select.Option value="PENDING">Pending</Select.Option>
-              <Select.Option value="SUSPENDED">Suspended</Select.Option>
-              <Select.Option value="REJECTED">Rejected</Select.Option>
-            </Select>
-          </Col>
-        </Row>
+        <Space wrap>
+          <Input
+            prefix={<SearchOutlined style={{ color: '#aaa' }} />}
+            placeholder="Search by name, email or phone…"
+            value={searchInput}
+            onChange={handleSearchChange}
+            onPressEnter={(e) => handleSearchSubmit(e.target.value)}
+            allowClear
+            style={{ width: 280 }}
+          />
+          <Select
+            placeholder="All Roles"
+            value={filters.role}
+            onChange={(value) => setFilters((prev) => ({ ...prev, role: value, page: 1 }))}
+            allowClear
+            style={{ width: 150 }}
+          >
+            <Select.Option value="CUSTOMER">Customer</Select.Option>
+            <Select.Option value="MERCHANT">Merchant</Select.Option>
+          </Select>
+          <Select
+            placeholder="All Statuses"
+            value={filters.status}
+            onChange={(value) => setFilters((prev) => ({ ...prev, status: value, page: 1 }))}
+            allowClear
+            style={{ width: 160 }}
+          >
+            <Select.Option value="APPROVED">Approved</Select.Option>
+            <Select.Option value="PENDING">Pending</Select.Option>
+            <Select.Option value="REJECTED">Rejected</Select.Option>
+            <Select.Option value="SUSPENDED">Suspended</Select.Option>
+          </Select>
+        </Space>
       </Card>
 
       <Card>
@@ -279,9 +324,10 @@ const UserManagement = () => {
           columns={columns}
           rowKey="id"
           loading={isLoading}
+          scroll={{ x: 900 }}
           pagination={{
             current: pagination?.page || 1,
-            pageSize: pagination?.limit || 20,
+            pageSize: pagination?.limit || 50,
             total: pagination?.total || 0,
             onChange: (page) => setFilters({ ...filters, page }),
             showSizeChanger: false,
@@ -290,59 +336,61 @@ const UserManagement = () => {
         />
       </Card>
 
-      {/* Suspend Modal */}
-      <Modal
-        title="Suspend User"
-        open={suspendModal.visible}
-        onOk={handleSuspend}
-        onCancel={() => {
-          setSuspendModal({ visible: false, userId: null });
-          setSuspendReason('');
-        }}
-        okText="Suspend"
-        okButtonProps={{ danger: true }}
-      >
-        <p>Are you sure you want to suspend this user? They will not be able to log in.</p>
-        <TextArea
-          placeholder="Suspension reason (optional)"
-          value={suspendReason}
-          onChange={(e) => setSuspendReason(e.target.value)}
-          rows={3}
-        />
-      </Modal>
+      {/* Suspend / Reactivate / Re-Approve — ConfirmActionModal */}
+      <ConfirmActionModal
+        open={actionModal.visible}
+        title={
+          isSuspend   ? `Suspend ${actionModal.userName}` :
+          isReapprove ? `Re-Approve ${actionModal.userName}` :
+                        `Reactivate ${actionModal.userName}`
+        }
+        commentRequired={isSuspend}
+        isDestructive={isSuspend}
+        loading={isSubmitting}
+        onConfirm={handleActionConfirm}
+        onCancel={closeActionModal}
+      />
 
-      {/* Top-Up Modal */}
+      {/* Top-Up modal — kept as Ant Design Modal for the custom numeric input */}
       <Modal
-        title={`Top-Up Wallet — ${topupModal.userName}`}
         open={topupModal.visible}
-        onOk={handleTopup}
-        onCancel={() => {
-          setTopupModal({ visible: false, userId: null, userName: '' });
-          setTopupAmount(null);
-          setTopupDesc('');
-        }}
-        okText="Add Funds"
+        title={`Top-Up Wallet — ${topupModal.userName}`}
+        onCancel={closeTopupModal}
+        onOk={handleTopupConfirm}
+        okText="Fund Wallet"
+        confirmLoading={isTopupSubmitting}
+        okButtonProps={{ disabled: !topupAmount || topupAmount < 100 }}
+        destroyOnHidden
       >
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Amount (TRY)</label>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Amount (TRY)</div>
           <InputNumber
-            min={1}
-            precision={2}
-            style={{ width: '100%' }}
-            placeholder="0.00"
+            min={100}
+            max={50000}
+            step={100}
             value={topupAmount}
             onChange={setTopupAmount}
+            style={{ width: '100%' }}
+            placeholder="Minimum 100 TRY"
+            prefix="₺"
           />
+          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+            Min: 100 TRY · Max: 50,000 TRY
+          </div>
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: 4 }}>Description (optional)</label>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Note (optional)</div>
           <TextArea
-            placeholder="e.g. Admin top-up for testing"
+            rows={3}
+            placeholder="Reason for top-up…"
             value={topupDesc}
             onChange={(e) => setTopupDesc(e.target.value)}
-            rows={2}
+            style={{ resize: 'none' }}
           />
         </div>
+        <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+          This action will be recorded in the admin audit log.
+        </p>
       </Modal>
     </div>
   );

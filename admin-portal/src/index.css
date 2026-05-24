@@ -226,11 +226,6 @@ body {
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.18s;
-}
-
-.header-admin-chip:hover {
-  background: var(--accent-glow);
 }
 
 .header-avatar {

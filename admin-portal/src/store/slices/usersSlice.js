@@ -69,9 +69,9 @@ export const suspendUser = createAsyncThunk(
 
 export const activateUser = createAsyncThunk(
   'users/activate',
-  async (userId, { rejectWithValue }) => {
+  async ({ userId, reason }, { rejectWithValue }) => {
     try {
-      await api.patch(`/admin/users/${userId}/reactivate`);
+      await api.patch(`/admin/users/${userId}/reactivate`, { reason });
       return userId;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to reactivate user');

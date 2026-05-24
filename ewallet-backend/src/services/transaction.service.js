@@ -268,11 +268,40 @@ async function getMerchantStats(userId) {
 /**
  * Get all transactions (admin view, paginated).
  */
-async function getAllTransactions({ page = 1, limit = 50, type, status, startDate, endDate, minAmount, maxAmount }) {
+async function getAllTransactions({ page = 1, limit = 50, type, status, startDate, endDate, minAmount, maxAmount, reference, search }) {
     const offset = (page - 1) * limit;
     const where = {};
     if (type) where.transaction_type = type;
     if (status) where.status = status;
+
+    // Reference-only search (used when navigating from Suspicious Activity via ?ref= URL param)
+    if (reference && reference.trim()) {
+        where.reference_code = { [Op.iLike]: `%${reference.trim()}%` };
+    }
+
+    // Unified search: reference_code OR sender user OR receiver user (LEFT JOIN preserved via subquery)
+    if (search && search.trim()) {
+        const { literal } = require('sequelize');
+        const term = search.trim().replace(/'/g, "''");
+        where[Op.or] = [
+            { reference_code: { [Op.iLike]: `%${term}%` } },
+            literal(`EXISTS (
+                SELECT 1 FROM wallets sw
+                JOIN users su ON su.id = sw.user_id
+                WHERE sw.id = "Transaction"."sender_wallet_id"
+                AND (su.email ILIKE '%${term}%'
+                    OR (su.first_name || ' ' || su.last_name) ILIKE '%${term}%')
+            )`),
+            literal(`EXISTS (
+                SELECT 1 FROM wallets rw
+                JOIN users ru ON ru.id = rw.user_id
+                WHERE rw.id = "Transaction"."receiver_wallet_id"
+                AND (ru.email ILIKE '%${term}%'
+                    OR (ru.first_name || ' ' || ru.last_name) ILIKE '%${term}%')
+            )`),
+        ];
+    }
+
     if (startDate || endDate) {
         where.createdAt = {};
         if (startDate) where.createdAt[Op.gte] = new Date(startDate);
