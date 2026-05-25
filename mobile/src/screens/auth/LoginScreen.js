@@ -8,7 +8,7 @@ import {
   StatusBar,
   TouchableOpacity,
 } from 'react-native';
-import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
+import { TextInput, Button, Text, Snackbar, HelperText } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -47,6 +47,7 @@ const LoginScreen = ({ navigation }) => {
   } = useSelector((state) => state.auth);
 
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [pin, setPin] = useState('');
   // Track the previous failCount so we can detect a NEW failure
   const prevFailCount = React.useRef(failCount);
@@ -73,11 +74,19 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSubmit = () => {
     if (pin.length !== 6) return;
+    setEmailError('');
     dispatch(clearError());
+
     if (cachedEmail) {
       dispatch(pinLogin({ pin }));
     } else {
-      dispatch(login({ email: email.trim(), password: pin }));
+      const trimmedEmail = email.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        setEmailError('Please enter a valid email address.');
+        return;
+      }
+      dispatch(login({ email: trimmedEmail, password: pin }));
     }
   };
 
@@ -238,18 +247,26 @@ const LoginScreen = ({ navigation }) => {
 
           {/* Email — hidden for returning users */}
           {!isExperienced && (
-            <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              mode="outlined"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={styles.input}
-              activeOutlineColor={PURPLE_MAIN}
-              outlineColor="#DDD"
-              left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
-            />
+            <View>
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setEmailError(''); }}
+                mode="outlined"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.input}
+                activeOutlineColor={PURPLE_MAIN}
+                outlineColor="#DDD"
+                error={!!emailError}
+                left={<TextInput.Icon icon="email-outline" color={PURPLE_MAIN} />}
+              />
+              {!!emailError && (
+                <HelperText type="error" visible={!!emailError} style={{ marginTop: -14, marginBottom: 8 }}>
+                  {emailError}
+                </HelperText>
+              )}
+            </View>
           )}
 
           {/* PIN — always shown */}

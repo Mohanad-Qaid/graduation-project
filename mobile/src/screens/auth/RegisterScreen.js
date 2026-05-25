@@ -125,8 +125,14 @@ const RegisterScreen = ({ navigation }) => {
       setValidationError('First and last name are required.');
       return false;
     }
-    if (!email.trim()) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       setValidationError('Email is required.');
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setValidationError('Please enter a valid email address.');
       return false;
     }
     if (phoneDigits.length !== 10) {

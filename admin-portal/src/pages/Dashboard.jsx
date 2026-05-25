@@ -10,24 +10,11 @@ import {
 } from '@ant-design/icons';
 import { fetchDashboardStats } from '../store/slices/dashboardSlice';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 
-// ── Hardcoded demo data for UI preview ────────────────────────────────────────
-const SPARKLINE_REVENUE = [18, 32, 27, 45, 38, 55, 62, 48, 70, 85, 74, 92];
-const RECENT_ACTIVITY = [
-  { id: 1, type: 'approval', text: 'Ahmed Al-Rashidi registration approved',  time: '2 min ago',  color: '#10B981' },
-  { id: 2, type: 'fraud',    text: 'High-risk transaction flagged — TXN-8842', time: '14 min ago', color: '#EF4444' },
-  { id: 3, type: 'withdraw', text: 'Withdrawal ₺12,500 pending review',        time: '31 min ago', color: '#F59E0B' },
-  { id: 4, type: 'topup',   text: 'Admin top-up ₺5,000 for user #2291',        time: '1 hr ago',  color: '#6200EE' },
-  { id: 5, type: 'suspend', text: 'User Sara Yilmaz suspended',                time: '2 hr ago',  color: '#EF4444' },
-  { id: 6, type: 'approval', text: 'Spice Garden merchant account approved',   time: '3 hr ago',  color: '#10B981' },
-];
-const TOP_MERCHANTS = [
-  { name: 'Spice Garden',   category: 'Restaurant',  revenue: '₺48,200', avatar: 'S', color: '#6200EE' },
-  { name: 'TechMart Store', category: 'Electronics', revenue: '₺31,750', avatar: 'T', color: '#2196F3' },
-  { name: 'Fresh Bazar',    category: 'Grocery',     revenue: '₺22,100', avatar: 'F', color: '#10B981' },
-  { name: 'Urban Cuts',     category: 'Services',    revenue: '₺14,890', avatar: 'U', color: '#F59E0B' },
-];
+dayjs.extend(relativeTime);
 
+// Constants removed - using real data from backend
 // ── Mini sparkline rendered with SVG ─────────────────────────────────────────
 function Sparkline({ data, color = '#6200EE', height = 40, width = 120 }) {
   const max = Math.max(...data);
@@ -141,6 +128,14 @@ const Dashboard = () => {
   const { stats } = useSelector((state) => state.dashboard);
   const { admin } = useSelector((state) => state.auth);
 
+  // Live data from Redux
+  const volumeData = stats?.volumeBreakdown?.length ? stats.volumeBreakdown : [];
+  const volumeTotal = stats?.volumeTotal ? stats.volumeTotal : 0;
+  const merchantList = stats?.topMerchants?.length ? stats.topMerchants : [];
+  const sparkline = stats?.revenueSparkline?.length ? stats.revenueSparkline : [0];
+  const sparkLabels = stats?.revenueSparklineLabels?.length ? stats.revenueSparklineLabels : [];
+  const recentLogs = stats?.recentActivity?.length ? stats.recentActivity : [];
+
   useEffect(() => {
     dispatch(fetchDashboardStats());
   }, [dispatch]);
@@ -170,24 +165,18 @@ const Dashboard = () => {
       }}>
         {/* Decorative blobs */}
         <div style={{ position: 'absolute', right: 120, top: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
-        <div style={{ position: 'absolute', right: 40,  top: 20,  width: 80,  height: 80,  borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
+        <div style={{ position: 'absolute', right: 40, top: 20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
 
         <div style={{ zIndex: 1 }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 6, letterSpacing: '0.5px' }}>
             {greet()},
           </div>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
-            {admin ? `${admin.first_name} ${admin.last_name}` : 'Administrator'} 👋
+            {admin ? `${admin.first_name} ${admin.last_name}` : 'Administrator'}
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <Tag style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#C4B5FD', borderRadius: 20, padding: '3px 12px' }}>
               {dayjs().format('dddd, DD MMM YYYY')}
-            </Tag>
-            <Tag
-              icon={<Badge status="processing" color="#10B981" />}
-              style={{ background: 'rgba(16,185,129,0.15)', border: 'none', color: '#6EE7B7', borderRadius: 20, padding: '3px 12px' }}
-            >
-              All systems operational
             </Tag>
           </div>
         </div>
@@ -210,8 +199,10 @@ const Dashboard = () => {
         {[
           {
             title: 'Total Users',
-            value: (stats?.totalUsers ?? 1248).toLocaleString(),
-            sub: '842 customers · 406 merchants',
+            value: (stats?.totalUsers ?? 0).toLocaleString(),
+            sub: stats?.customerCount != null
+              ? `${stats.customerCount} customers · ${stats.merchantCount} merchants`
+              : 'Registered accounts on the platform',
             icon: <TeamOutlined />,
             color: '#6200EE',
             trend: 8,
@@ -220,8 +211,8 @@ const Dashboard = () => {
           },
           {
             title: 'Transactions',
-            value: (stats?.totalTransactions ?? 18340).toLocaleString(),
-            sub: 'Total processed to date',
+            value: (stats?.totalTransactions ?? 0).toLocaleString(),
+            sub: 'Payments processed across the platform',
             icon: <TransactionOutlined />,
             color: '#2196F3',
             trend: 14,
@@ -230,7 +221,7 @@ const Dashboard = () => {
           },
           {
             title: 'Pending Withdrawals',
-            value: (stats?.pendingWithdrawals ?? 7).toLocaleString(),
+            value: (stats?.pendingWithdrawals ?? 0).toLocaleString(),
             sub: 'Awaiting admin approval',
             icon: <BankOutlined />,
             color: '#F59E0B',
@@ -240,7 +231,7 @@ const Dashboard = () => {
           },
           {
             title: 'Fraud Flags',
-            value: (stats?.unreviewedFraudFlags ?? 3).toLocaleString(),
+            value: (stats?.unreviewedFraudFlags ?? 0).toLocaleString(),
             sub: 'Unreviewed suspicious activity',
             icon: <WarningOutlined />,
             color: '#EF4444',
@@ -255,8 +246,106 @@ const Dashboard = () => {
         ))}
       </Row>
 
-      {/* ── Middle Row: Activity + Merchants ───────────────────────────────── */}
+      {/* ── Middle Row: Cash Flow + User Demographics ───────────────────────── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+
+        {/* Cash Flow Breakdown */}
+        <Col xs={24} md={12}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', height: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35', marginBottom: 4 }}>Volume Breakdown</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>Last 7 days — total ₺{volumeTotal.toLocaleString()}</div>
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#1A1D35' }}>₺{volumeTotal.toLocaleString()}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {volumeData.map(item => (
+                <div key={item.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{item.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1D35' }}>₺{item.amount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ height: 8, background: '#F3F4F6', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${item.percent}%`, height: '100%', background: item.color, borderRadius: 4 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => navigate('/transactions')}
+              style={{ marginTop: 24, width: '100%', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 12, padding: '12px', cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 600, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#374151'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280'; }}
+            >
+              View All Transactions
+            </button>
+          </div>
+        </Col>
+
+        {/* User Demographics */}
+        <Col xs={24} md={12}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', height: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35', marginBottom: 4 }}>User Breakdown</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>Who is using the platform</div>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: '#F0F9FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284C7', fontSize: 18 }}>
+                <TeamOutlined />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+              {/* Customers Box */}
+              <div style={{ padding: '16px 20px', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6200EE' }} />
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Customers</div>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#1A1D35' }}>{stats?.customerCount ?? 0}</div>
+              </div>
+
+              {/* Merchants Box */}
+              <div style={{ padding: '16px 20px', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Merchants</div>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#1A1D35' }}>{stats?.merchantCount ?? 0}</div>
+              </div>
+
+              {/* Active Today Box */}
+              <div style={{ padding: '16px 20px', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>Active Today</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1D35' }}>0</div>
+              </div>
+
+              {/* New This Week Box */}
+              <div style={{ padding: '16px 20px', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>New This Week</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <ArrowUpOutlined style={{ fontSize: 14 }} /> {stats?.newThisWeek ?? 0}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/users')}
+              style={{ width: '100%', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 12, padding: '12px', cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 600, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#374151'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280'; }}
+            >
+              Go to User Management
+            </button>
+          </div>
+        </Col>
+      </Row>
+
+      {/* ── Bottom Row: Activity + Merchants ───────────────────────────────── */}
+      <Row gutter={[16, 16]}>
 
         {/* Recent Activity Timeline */}
         <Col xs={24} lg={14}>
@@ -264,21 +353,21 @@ const Dashboard = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35' }}>Recent Activity</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Live admin action feed</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Latest admin actions on the platform</div>
               </div>
               <button
                 onClick={() => navigate('/logs')}
                 style={{ background: '#F5F3FF', border: 'none', borderRadius: 10, padding: '6px 14px', cursor: 'pointer', color: '#6200EE', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}
               >
-                View All <RightOutlined style={{ fontSize: 10 }} />
+                View Audit Logs <RightOutlined style={{ fontSize: 10 }} />
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {RECENT_ACTIVITY.map((item, idx) => (
-                <div key={item.id} style={{ display: 'flex', gap: 16, paddingBottom: idx < RECENT_ACTIVITY.length - 1 ? 16 : 0, position: 'relative' }}>
+              {recentLogs.map((item, idx) => (
+                <div key={item.id} style={{ display: 'flex', gap: 16, paddingBottom: idx < recentLogs.length - 1 ? 16 : 0, position: 'relative' }}>
                   {/* Timeline connector line */}
-                  {idx < RECENT_ACTIVITY.length - 1 && (
+                  {idx < recentLogs.length - 1 && (
                     <div style={{ position: 'absolute', left: 15, top: 32, bottom: 0, width: 2, background: '#F3F4F6', zIndex: 0 }} />
                   )}
                   {/* Dot */}
@@ -294,7 +383,9 @@ const Dashboard = () => {
                   {/* Text */}
                   <div style={{ flex: 1, paddingTop: 4 }}>
                     <div style={{ fontSize: 13, color: '#374151', fontWeight: 500, lineHeight: 1.4 }}>{item.text}</div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>{item.time}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                      {item.time.includes('ago') ? item.time : dayjs(item.time).fromNow()}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -308,13 +399,13 @@ const Dashboard = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35' }}>Top Merchants</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>By transaction volume this month</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Highest revenue earned this month</div>
               </div>
               <FireOutlined style={{ color: '#F59E0B', fontSize: 18 }} />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {TOP_MERCHANTS.map((m, i) => (
+              {merchantList.map((m, i) => (
                 <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#D1D5DB', width: 18 }}>#{i + 1}</div>
                   <Avatar size={40} style={{ background: m.color, fontWeight: 700, flexShrink: 0 }}>{m.avatar}</Avatar>
@@ -329,90 +420,12 @@ const Dashboard = () => {
 
             {/* Revenue trend mini-chart */}
             <div style={{ marginTop: 24, padding: '16px 0 0', borderTop: '1px solid #F3F4F6' }}>
-              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>Monthly revenue trend</div>
-              <Sparkline data={SPARKLINE_REVENUE} color="#6200EE" width={280} height={48} />
+              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>Platform fee revenue — last 6 months</div>
+              <Sparkline data={sparkline} color="#6200EE" width={280} height={48} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Now'].map(l => (
+                {sparkLabels.map(l => (
                   <span key={l} style={{ fontSize: 10, color: '#D1D5DB' }}>{l}</span>
                 ))}
-              </div>
-            </div>
-          </div>
-        </Col>
-      </Row>
-
-      {/* ── Bottom Row: Quick Actions + System Health ───────────────────────── */}
-      <Row gutter={[16, 16]}>
-
-        {/* Quick Actions */}
-        <Col xs={24} md={12}>
-          <div style={{ background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35', marginBottom: 4 }}>Quick Actions</div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 20 }}>Jump to the most common workflows</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {[
-                { label: 'Review Registrations', icon: <UserAddOutlined />, color: '#6200EE', route: '/pending-registrations', count: 4 },
-                { label: 'Approve Withdrawals',  icon: <BankOutlined />,    color: '#F59E0B', route: '/withdrawal-requests',   count: 7 },
-                { label: 'Fraud Flags',          icon: <WarningOutlined />, color: '#EF4444', route: '/suspicious',           count: 3 },
-                { label: 'User Management',      icon: <TeamOutlined />,    color: '#2196F3', route: '/users',                count: null },
-              ].map(a => (
-                <button
-                  key={a.label}
-                  onClick={() => navigate(a.route)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    background: `${a.color}0d`, border: `1.5px solid ${a.color}25`,
-                    borderRadius: 14, padding: '14px 16px',
-                    cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left', width: '100%',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = `${a.color}1a`; e.currentTarget.style.borderColor = `${a.color}60`; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = `${a.color}0d`; e.currentTarget.style.borderColor = `${a.color}25`; }}
-                >
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${a.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: a.color, fontSize: 16, flexShrink: 0 }}>
-                    {a.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1A1D35' }}>{a.label}</div>
-                    {a.count != null && (
-                      <div style={{ fontSize: 11, color: a.color, marginTop: 1 }}>{a.count} pending</div>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </Col>
-
-        {/* System Health */}
-        <Col xs={24} md={12}>
-          <div style={{ background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', height: '100%' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D35', marginBottom: 4 }}>System Health</div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 20 }}>Current platform status</div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { label: 'API Server',      status: 'Operational', uptime: '99.98%', color: '#10B981' },
-                { label: 'Database',        status: 'Operational', uptime: '99.99%', color: '#10B981' },
-                { label: 'Redis Cache',     status: 'Operational', uptime: '100%',   color: '#10B981' },
-                { label: 'Stripe Payments', status: 'Operational', uptime: '99.95%', color: '#10B981' },
-                { label: 'Email Service',   status: 'Degraded',    uptime: '97.20%', color: '#F59E0B' },
-              ].map(s => (
-                <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, boxShadow: `0 0 6px ${s.color}`, flexShrink: 0 }} />
-                  <div style={{ flex: 1, fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.label}</div>
-                  <Tag color={s.color === '#10B981' ? 'success' : 'warning'} style={{ borderRadius: 20, fontSize: 11 }}>
-                    {s.status}
-                  </Tag>
-                  <div style={{ fontSize: 12, color: '#9CA3AF', width: 48, textAlign: 'right' }}>{s.uptime}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 20, padding: '14px 16px', background: '#F0FDF4', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <CheckCircleOutlined style={{ color: '#10B981', fontSize: 16 }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46' }}>4 / 5 services fully operational</div>
-                <div style={{ fontSize: 11, color: '#6EE7B7', marginTop: 1 }}>Last checked: {dayjs().format('HH:mm:ss')}</div>
               </div>
             </div>
           </div>

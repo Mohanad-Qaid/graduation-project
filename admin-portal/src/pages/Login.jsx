@@ -77,7 +77,7 @@ const Login = () => {
               >
                 <Input
                   prefix={<UserOutlined />}
-                  placeholder="admin@ewallet.com"
+                  placeholder="admin@.com"
                   autoComplete="email"
                   style={{
                     background: 'rgba(255,255,255,0.06)',
@@ -103,6 +103,7 @@ const Login = () => {
                   style={{
                     background: 'rgba(255,255,255,0.06)',
                     border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#fff',
                     borderRadius: 12,
                     height: 54,
                     fontSize: 15,
