@@ -14,7 +14,7 @@ const FRAUD_WINDOW_SECS     = 3600; // 1 hour
 // ─── Heuristic fallback ───────────────────────────────────────────────────────
 
 /**
- * Rule-based scoring used when all Gemini models are unavailable.
+ * Rule-based scoring used when the Groq AI is unavailable.
  * @param {{ senderWalletId: string, amount: number }} params
  * @returns {Promise<{ score: number, reasons: string[] }>}
  */
@@ -49,7 +49,7 @@ async function computeHeuristicScore({ senderWalletId, amount }) {
 // ─── Context builder ──────────────────────────────────────────────────────────
 
 /**
- * Assembles the rich context object that is sent to Gemini.
+ * Assembles the rich context object that is sent to the fraud AI.
  * Runs three background DB queries (avg value, last top-up, is new recipient).
  * These run concurrently for efficiency.
  *

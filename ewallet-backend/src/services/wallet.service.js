@@ -28,7 +28,7 @@ async function topUpWallet({ userId, amount, description, transactionIp }) {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
-    const balanceBefore = parseFloat(wallet.balance); // captured for Gemini context
+    const balanceBefore = parseFloat(wallet.balance); // captured for fraud AI context
 
     const dbTxn = await sequelize.transaction();
     try {

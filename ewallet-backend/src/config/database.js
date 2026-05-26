@@ -31,8 +31,9 @@ const sequelize = new Sequelize(
                     : false,
         },
 
-        // Suppress Sequelize query logs in production
-        logging: isProduction ? false : (msg) => logger.debug(msg),
+
+        logging: false,
+        // logging: isProduction ? false : (msg) => logger.debug(msg),
 
         define: {
             underscored: false,

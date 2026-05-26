@@ -56,7 +56,7 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
 
         // ── Step 4: Check sufficient balance ───────────────────────────────
         const senderBalance = parseFloat(senderWallet.balance);
-        const senderBalanceBefore = senderBalance; // captured before deduction for Gemini context
+        const senderBalanceBefore = senderBalance; // captured before deduction for fraud AI context
         if (senderBalance < paymentAmount) {
             throw createHttpError(400, `Insufficient balance. Available: ${senderBalance}, Required: ${paymentAmount}`);
         }
