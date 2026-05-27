@@ -23,7 +23,8 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// On 401: clear storage and redirect to login
+// On 401: clear storage and redirect to login.
+// On network errors (server offline): attach a human-readable message.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -43,6 +44,19 @@ api.interceptors.response.use(
       localStorage.removeItem('admin');
       window.location.href = '/login';
     }
+
+    // When the server is completely offline (no response at all), axios sets
+    // error.response to undefined. Convert this to a readable message so that
+    // slices and pages can display it instead of getting undefined/null.
+    if (!error.response) {
+      error.readableMessage = 'Cannot reach the server. Check that the backend is running.';
+    } else {
+      // Extract the backend's error message if available
+      error.readableMessage =
+        error.response.data?.message ||
+        `Request failed with status ${error.response.status}.`;
+    }
+
     return Promise.reject(error);
   }
 );

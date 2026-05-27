@@ -4,13 +4,17 @@ import { Table, Button, Tag, Space, Card, Typography, message, Empty } from 'ant
 import { CheckOutlined, CloseOutlined, UserOutlined, ShopOutlined } from '@ant-design/icons';
 import { fetchPendingUsers, approveUser, rejectUser } from '../store/slices/usersSlice';
 import ConfirmActionModal from '../components/ConfirmActionModal';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
 const PendingRegistrations = () => {
   const dispatch = useDispatch();
-  const { pending, isLoading } = useSelector((state) => state.users);
+  const { pending, isLoading, error } = useSelector((state) => state.users);
+  const reload = () => dispatch(fetchPendingUsers());
+  useErrorToast(error, 'Failed to load pending registrations');
+
 
   // Single unified modal state: { visible, type ('approve'|'reject'), userId }
   const [modal, setModal] = useState({ visible: false, type: null, userId: null });

@@ -9,8 +9,9 @@ import {
   SearchOutlined, StopOutlined, CheckCircleOutlined,
   DollarOutlined, UserOutlined, ShopOutlined,
 } from '@ant-design/icons';
-import { fetchUsers, suspendUser, activateUser, topupUser } from '../store/slices/usersSlice';
+import { fetchUsers, suspendUser, activateUser, topupUser, reapproveUser } from '../store/slices/usersSlice';
 import ConfirmActionModal from '../components/ConfirmActionModal';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -25,7 +26,8 @@ const statusColors = {
 const UserManagement = () => {
   const dispatch = useDispatch();
   const location = useLocation();
-  const { list, pagination, isLoading } = useSelector((state) => state.users);
+  const { list, pagination, isLoading, error } = useSelector((state) => state.users);
+  useErrorToast(error, 'Failed to load users');
 
   // Read ?search= URL param (set by SuspiciousTransactions "View in User Management" link)
   const urlSearch = new URLSearchParams(location.search).get('search') || '';
@@ -97,10 +99,14 @@ const UserManagement = () => {
       if (actionModal.type === 'suspend') {
         await dispatch(suspendUser({ userId: actionModal.userId, reason: comment })).unwrap();
         message.success('User suspended successfully.');
+      } else if (actionModal.type === 'reapprove') {
+        // Rejected → Approved: use the dedicated reapprove thunk (logs USER_REAPPROVED)
+        await dispatch(reapproveUser({ userId: actionModal.userId, reason: comment })).unwrap();
+        message.success('User account re-approved.');
       } else {
-        // 'reactivate' and 'reapprove' both call activateUser — same backend endpoint
+        // reactivate: Suspended → Approved (logs USER_REACTIVATED)
         await dispatch(activateUser({ userId: actionModal.userId, reason: comment })).unwrap();
-        message.success('User account approved and activated.');
+        message.success('User account reactivated.');
       }
       closeActionModal();
       refreshUsers();
@@ -127,12 +133,16 @@ const UserManagement = () => {
       message.error('Minimum top-up amount is 100 TRY.');
       return;
     }
+    if (!topupDesc || !topupDesc.trim()) {
+      message.error('A description is required for admin top-ups.');
+      return;
+    }
     setIsTopupSubmitting(true);
     try {
       await dispatch(topupUser({
         userId: topupModal.userId,
         amount: topupAmount,
-        description: topupDesc || `Admin top-up of ${topupAmount} TRY`,
+        description: topupDesc.trim(),
       })).unwrap();
       message.success(`Wallet topped up by ${topupAmount} TRY.`);
       closeTopupModal();
@@ -216,8 +226,8 @@ const UserManagement = () => {
       key: 'actions',
       render: (_, record) => (
         <Space wrap>
-          {/* Top-Up — customers only */}
-          {record.role === 'CUSTOMER' && record.status === 'APPROVED' && (
+          {/* Top-Up — all approved users (customers & merchants) */}
+          {record.status === 'APPROVED' && (
             <Tooltip title="Add funds to wallet">
               <Button
                 size="small"
@@ -344,7 +354,7 @@ const UserManagement = () => {
           isReapprove ? `Re-Approve ${actionModal.userName}` :
                         `Reactivate ${actionModal.userName}`
         }
-        commentRequired={isSuspend}
+        commentRequired={true}
         isDestructive={isSuspend}
         loading={isSubmitting}
         onConfirm={handleActionConfirm}
@@ -359,7 +369,7 @@ const UserManagement = () => {
         onOk={handleTopupConfirm}
         okText="Fund Wallet"
         confirmLoading={isTopupSubmitting}
-        okButtonProps={{ disabled: !topupAmount || topupAmount < 100 }}
+        okButtonProps={{ disabled: !topupAmount || topupAmount < 100 || !topupDesc?.trim() }}
         destroyOnHidden
       >
         <div style={{ marginBottom: 16 }}>
@@ -378,11 +388,11 @@ const UserManagement = () => {
             Min: 100 TRY · Max: 50,000 TRY
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Note (optional)</div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Note (required)</div>
           <TextArea
             rows={3}
-            placeholder="Reason for top-up…"
+            placeholder="Reason for top-up (required)…"
             value={topupDesc}
             onChange={(e) => setTopupDesc(e.target.value)}
             style={{ resize: 'none' }}

@@ -29,6 +29,7 @@ router.patch('/users/:userId/approve',     userIdParamRules, validate, controlle
 router.patch('/users/:userId/reject',      [...userIdParamRules, ...requiredReasonRules], validate, controller.rejectUser);
 router.patch('/users/:userId/suspend',     [...userIdParamRules, ...requiredReasonRules], validate, controller.suspendUser);
 router.patch('/users/:userId/reactivate',  [...userIdParamRules, ...requiredReasonRules], validate, controller.reactivateUser);
+router.patch('/users/:userId/reapprove',   [...userIdParamRules, ...requiredReasonRules], validate, controller.reapproveUser);
 
 // ─── Top-up ───────────────────────────────────────────────────────────────────
 router.post('/users/:userId/topup', adminTopUpRules, validate, controller.adminTopUp);

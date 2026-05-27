@@ -5,6 +5,8 @@ const { generateReferenceCode } = require('../utils/generateRef.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
 const { WITHDRAWAL_FEE_RATE } = require('../config/fees.config');
+// logAdminAction is used here to log WITHDRAWAL_APPROVED / WITHDRAWAL_REJECTED
+const { logAdminAction } = require('./admin.service');
 
 /**
  * Merchant submits a withdrawal request.
@@ -129,10 +131,20 @@ async function approveWithdrawal(requestId, adminId) {
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
                 description: `Withdrawal approved — fee: ${request.fee_amount ?? 0} TRY retained by platform`,
-                counterparty: request.bank_account_name || request.bank_name || null,
+                // Store bank name as counterparty so the Transactions "To" column shows
+                // the bank name, not the account holder's personal name.
+                counterparty: request.bank_name || request.bank_account_name || null,
             },
             { transaction: dbTxn }
         );
+
+        await logAdminAction({
+            adminId,
+            actionType: 'WITHDRAWAL_APPROVED',
+            targetUserId: request.merchant_id,
+            description: `Withdrawal request ${requestId} approved. Gross: ${request.amount} TRY, Net payout: ${payoutAmount} TRY, Fee: ${request.fee_amount ?? 0} TRY.`,
+            dbTxn,
+        });
 
         await dbTxn.commit();
         return request;
@@ -169,6 +181,14 @@ async function rejectWithdrawal(requestId, adminId, reason) {
         request.processed_at = new Date();
         request.rejection_reason = reason || null;
         await request.save({ transaction: dbTxn });
+
+        await logAdminAction({
+            adminId,
+            actionType: 'WITHDRAWAL_REJECTED',
+            targetUserId: request.merchant_id,
+            description: `Withdrawal request ${requestId} rejected. Gross amount ${request.amount} TRY refunded. Reason: ${reason || 'N/A'}`,
+            dbTxn,
+        });
 
         await dbTxn.commit();
         return request;

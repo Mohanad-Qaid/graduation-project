@@ -9,22 +9,22 @@ export const fetchWithdrawals = createAsyncThunk(
       const response = await api.get('/admin/withdrawals', { params });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch withdrawals');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch withdrawals');
     }
   }
 );
 
-// GET /admin/withdrawals?status=PENDING
+// GET /admin/withdrawals?status=PENDING  (paginated, 50 per page)
 export const fetchPendingWithdrawals = createAsyncThunk(
   'withdrawals/fetchPending',
-  async (_, { rejectWithValue }) => {
+  async (page = 1, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/withdrawals', {
-        params: { status: 'PENDING', limit: 100 },
+        params: { status: 'PENDING', limit: 50, page },
       });
-      return response.data.data;
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch withdrawals');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch withdrawals');
     }
   }
 );
@@ -37,7 +37,7 @@ export const approveWithdrawal = createAsyncThunk(
       await api.patch(`/admin/withdrawals/${withdrawalId}/approve`);
       return withdrawalId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to approve withdrawal');
+      return rejectWithValue(error.readableMessage || 'Failed to approve withdrawal');
     }
   }
 );
@@ -50,7 +50,7 @@ export const rejectWithdrawal = createAsyncThunk(
       await api.patch(`/admin/withdrawals/${withdrawalId}/reject`, { reason });
       return withdrawalId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to reject withdrawal');
+      return rejectWithValue(error.readableMessage || 'Failed to reject withdrawal');
     }
   }
 );
@@ -88,7 +88,8 @@ const withdrawalsSlice = createSlice({
       })
       .addCase(fetchPendingWithdrawals.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.pending = action.payload || [];
+        state.pending = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(fetchPendingWithdrawals.rejected, (state, action) => {
         state.isLoading = false;

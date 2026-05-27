@@ -5,6 +5,7 @@ const transactionService = require('../services/transaction.service');
 const withdrawalService = require('../services/withdrawal.service');
 const walletService = require('../services/wallet.service');
 const { sendSuccess } = require('../utils/response.util');
+const { logAdminAction } = require('../services/admin.service');
 
 // ─── User Management ──────────────────────────────────────────────────────────
 
@@ -68,8 +69,18 @@ async function suspendUser(req, res, next) {
 /** PATCH /api/v1/admin/users/:userId/reactivate */
 async function reactivateUser(req, res, next) {
     try {
-        const user = await adminService.reactivateUser(req.params.userId, req.user.id);
+        const user = await adminService.reactivateUser(req.params.userId, req.user.id, req.body.reason);
         return sendSuccess(res, { message: 'User reactivated.', data: user });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/** PATCH /api/v1/admin/users/:userId/reapprove */
+async function reapproveUser(req, res, next) {
+    try {
+        const user = await adminService.reapproveUser(req.params.userId, req.user.id, req.body.reason);
+        return sendSuccess(res, { message: 'User re-approved.', data: user });
     } catch (err) {
         next(err);
     }
@@ -151,6 +162,21 @@ async function adminTopUp(req, res, next) {
             amount: parseFloat(amount),
             description: description || `Admin top-up by ${req.user.email}`,
         });
+
+        // Log the top-up action to the audit trail. Wrapped in its own try/catch
+        // so that a logging failure never blocks the successful top-up response.
+        try {
+            await logAdminAction({
+                adminId: req.user.id,
+                actionType: 'ADMIN_TOPUP',
+                targetUserId: req.params.userId,
+                description: `Admin top-up of ${amount} TRY. Note: ${description || 'N/A'}`,
+            });
+        } catch (logErr) {
+            // Log failure is non-fatal — operation succeeded, just couldn't write audit log
+            require('../utils/logger.util').warn('Failed to write admin log for top-up:', logErr);
+        }
+
         return sendSuccess(res, { statusCode: 201, message: 'Wallet topped up.', data: txn });
     } catch (err) {
         next(err);
@@ -230,6 +256,7 @@ module.exports = {
     rejectUser,
     suspendUser,
     reactivateUser,
+    reapproveUser,
     getAllTransactions,
     listWithdrawals,
     approveWithdrawal,

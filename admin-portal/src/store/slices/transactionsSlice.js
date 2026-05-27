@@ -9,7 +9,7 @@ export const fetchTransactions = createAsyncThunk(
       const response = await api.get('/admin/transactions', { params });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch transactions');
     }
   }
 );
@@ -24,7 +24,7 @@ export const fetchFraudFlags = createAsyncThunk(
       });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch fraud flags');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch fraud flags');
     }
   }
 );
@@ -37,7 +37,7 @@ export const reviewFraudFlag = createAsyncThunk(
       await api.patch(`/admin/fraud-flags/${flagId}/review`);
       return flagId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to mark flag as reviewed');
+      return rejectWithValue(error.readableMessage || 'Failed to mark flag as reviewed');
     }
   }
 );

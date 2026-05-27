@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Typography, Tag, Alert } from 'antd';
+import { Table, Card, Typography, Tag } from 'antd';
 import { FileTextOutlined } from '@ant-design/icons';
 import api from '../services/api';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -10,9 +11,12 @@ const AdminLogs = () => {
   const [logs, setLogs] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  useErrorToast(error, 'Failed to load admin logs');
 
   const fetchLogs = async (page = 1) => {
     setLoading(true);
+    setError(null);
     try {
       // Backend endpoint: GET /admin/logs?page&limit
       const response = await api.get('/admin/logs', { params: { page, limit: 50 } });
@@ -23,8 +27,9 @@ const AdminLogs = () => {
         limit: meta?.limit || 50,
         total: meta?.total || 0,
       });
-    } catch (error) {
-      console.error('Failed to fetch admin logs:', error);
+    } catch (err) {
+      const msg = err.readableMessage || 'Failed to load admin logs. Please try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }

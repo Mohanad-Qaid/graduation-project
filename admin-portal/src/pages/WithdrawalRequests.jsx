@@ -8,6 +8,7 @@ import {
   rejectWithdrawal,
 } from '../store/slices/withdrawalsSlice';
 import ConfirmActionModal from '../components/ConfirmActionModal';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 
 const { Text } = Typography;
@@ -17,7 +18,10 @@ const FEE_RATE_DISPLAY = '5.0%';
 
 const WithdrawalRequests = () => {
   const dispatch = useDispatch();
-  const { pending, isLoading } = useSelector((state) => state.withdrawals);
+  const { pending, pagination, isLoading, error } = useSelector((state) => state.withdrawals);
+  const [currentPage, setCurrentPage] = useState(1);
+  const reload = (page = currentPage) => dispatch(fetchPendingWithdrawals(page));
+  useErrorToast(error, 'Failed to load withdrawal requests');
 
   const [modal, setModal] = useState({
     visible: false,
@@ -29,8 +33,8 @@ const WithdrawalRequests = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchPendingWithdrawals());
-  }, [dispatch]);
+    dispatch(fetchPendingWithdrawals(currentPage));
+  }, [dispatch, currentPage]);
 
   const openModal = (type, record) => {
     setModal({
@@ -210,7 +214,13 @@ const WithdrawalRequests = () => {
             columns={columns}
             rowKey="id"
             loading={isLoading}
-            pagination={{ pageSize: 50, showTotal: (total) => `${total} pending requests` }}
+            pagination={{
+              current: currentPage,
+              pageSize: 50,
+              total: pagination?.total ?? pending.length,
+              showTotal: (total) => `${total} pending requests`,
+              onChange: (page) => setCurrentPage(page),
+            }}
             scroll={{ x: 900 }}
           />
         )}

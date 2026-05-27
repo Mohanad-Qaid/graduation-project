@@ -23,25 +23,25 @@ export const fetchDashboardStats = createAsyncThunk(
       const recentTransactions = recentRes.data.data || [];
 
       return {
-        totalUsers:             stats.totalUsers             || 0,
-        customerCount:          stats.customerCount          || 0,
-        merchantCount:          stats.merchantCount          || 0,
-        totalTransactions:      stats.totalTransactions      || 0,
-        pendingWithdrawals:     stats.pendingWithdrawals     || 0,
-        unreviewedFraudFlags:   stats.unreviewedFraudFlags   || 0,
-        totalRevenue:           parseFloat(stats.totalRevenue || 0),
-        newThisWeek:            stats.newThisWeek            || 0,
-        volumeBreakdown:        stats.volumeBreakdown        || [],
-        volumeTotal:            stats.volumeTotal            || 0,
-        topMerchants:           stats.topMerchants           || [],
-        revenueSparkline:       stats.revenueSparkline       || [],
+        totalUsers: stats.totalUsers || 0,
+        customerCount: stats.customerCount || 0,
+        merchantCount: stats.merchantCount || 0,
+        totalTransactions: stats.totalTransactions || 0,
+        pendingWithdrawals: stats.pendingWithdrawals || 0,
+        unreviewedFraudFlags: stats.unreviewedFraudFlags || 0,
+        totalRevenue: parseFloat(stats.totalRevenue || 0),
+        newThisWeek: stats.newThisWeek || 0,
+        volumeBreakdown: stats.volumeBreakdown || [],
+        volumeTotal: stats.volumeTotal || 0,
+        topMerchants: stats.topMerchants || [],
+        revenueSparkline: stats.revenueSparkline || [],
         revenueSparklineLabels: stats.revenueSparklineLabels || [],
-        recentActivity:         stats.recentActivity         || [],
-        trends:                 stats.trends                 || {},
+        recentActivity: stats.recentActivity || [],
+        trends: stats.trends || {},
         recentTransactions,
       };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch dashboard stats');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch dashboard stats');
     }
   }
 );
@@ -59,11 +59,11 @@ export const fetchFilteredRevenue = createAsyncThunk(
     try {
       const params = {};
       if (startDate) params.startDate = startDate;
-      if (endDate)   params.endDate   = endDate;
+      if (endDate) params.endDate = endDate;
       const res = await api.get('/admin/revenue', { params });
       return res.data.data; // { totalRevenue, count, startDate, endDate }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch revenue');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch revenue');
     }
   }
 );

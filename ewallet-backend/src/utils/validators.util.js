@@ -87,7 +87,12 @@ const userIdParamRules = [
 const adminTopUpRules = [
     param('userId').isUUID().withMessage('Valid user ID required.'),
     body('amount').isFloat({ gt: 0 }).withMessage('Amount must be positive.'),
-    body('description').optional().trim().isLength({ max: 255 }),
+    body('description')
+        .trim()
+        .notEmpty()
+        .withMessage('A description/note is required for admin top-ups.')
+        .isLength({ max: 255 })
+        .withMessage('Description must be 255 characters or fewer.'),
 ];
 
 const rejectReasonRules = [

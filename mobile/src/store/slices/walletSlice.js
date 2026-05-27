@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { 
-  updateCachedBalance, 
+import {
+  updateCachedBalance,
   syncWithdrawalNotifications,
   getUserProfile,
   getCachedTransactions,
@@ -23,10 +23,10 @@ export const fetchBalance = createAsyncThunk(
         const cachedProfile = await getUserProfile();
         if (cachedProfile && cachedProfile.last_known_balance !== undefined) {
           console.log('[SQLite] Loaded balance from offline cache!');
-          return { 
-            balance: cachedProfile.last_known_balance, 
+          return {
+            balance: cachedProfile.last_known_balance,
             currency: 'TRY', // Defaulting to TRY, or could read from profile if added later
-            isOfflineMode: true 
+            isOfflineMode: true
           };
         }
       } catch (dbErr) {
@@ -101,14 +101,14 @@ export const fetchMerchantDashboard = createAsyncThunk(
         const cachedProfile = await getUserProfile();
         const cachedTx = await getCachedTransactions();
         const cachedWithdrawals = await getCachedWithdrawals();
-        
+
         if (cachedProfile) {
           console.log('[SQLite] Loaded merchant dashboard from offline cache!');
-          
+
           const pendingWithdrawal = (cachedWithdrawals || [])
             .filter((w) => w.status === 'PENDING')
             .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
-            
+
           return {
             balance: cachedProfile.last_known_balance || 0,
             currency: 'TRY',
@@ -143,7 +143,7 @@ const walletSlice = createSlice({
   name: 'wallet',
   initialState: {
     balance: 0,
-    currency: 'USD',
+    currency: 'TRY',
     merchantStats: null,
     isLoading: false,
     error: null,
@@ -170,7 +170,7 @@ const walletSlice = createSlice({
         state.isLoading = false;
         const newBalance = parseFloat(action.payload.balance) || 0;
         state.balance = newBalance;
-        state.currency = action.payload.currency || 'USD';
+        state.currency = action.payload.currency || 'TRY';
         state.isOfflineMode = !!action.payload.isOfflineMode;
         // Persist to SQLite so the offline snapshot is always fresh
         if (!state.isOfflineMode) {

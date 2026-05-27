@@ -1,6 +1,6 @@
 'use strict';
 
-const { User, AdminLog, FraudFlag, Transaction, WithdrawalRequest, sequelize } = require('../models');
+const { User, AdminLog, FraudFlag, Transaction, Wallet, WithdrawalRequest, sequelize } = require('../models');
 const { Op, fn, col, literal } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
@@ -24,8 +24,10 @@ async function logAdminAction({ adminId, actionType, targetUserId, description, 
  */
 async function getPendingUsers() {
     return User.findAll({
-        where: { status: 'PENDING' },
-        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'createdAt'],
+        // Only show users who have verified their email — unverified users
+        // may have registered but never confirmed, so admins should not act on them.
+        where: { status: 'PENDING', email_verified: true },
+        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'email_verified', 'createdAt'],
         order: [['createdAt', 'ASC']],
     });
 }
@@ -152,15 +154,18 @@ async function suspendUser(targetUserId, adminId, reason) {
 }
 
 /**
- * Reactivate a suspended (or rejected) user — set status back to APPROVED.
+ * Reactivate a SUSPENDED user — sets status back to APPROVED.
+ * Logs USER_REACTIVATED.
  */
-async function reactivateUser(targetUserId, adminId) {
+async function reactivateUser(targetUserId, adminId, reason) {
     const dbTxn = await sequelize.transaction();
     try {
         const user = await User.findByPk(targetUserId, { transaction: dbTxn });
         if (!user) throw createHttpError(404, 'User not found.');
         if (user.role === 'ADMIN') throw createHttpError(403, 'Cannot modify an admin account.');
-        if (user.status === 'APPROVED') throw createHttpError(400, 'User is already active.');
+        if (user.status !== 'SUSPENDED') {
+            throw createHttpError(400, `reactivateUser expects a SUSPENDED user, got: ${user.status}`);
+        }
 
         user.status = 'APPROVED';
         await user.save({ transaction: dbTxn });
@@ -169,12 +174,46 @@ async function reactivateUser(targetUserId, adminId) {
             adminId,
             actionType: 'USER_REACTIVATED',
             targetUserId,
-            description: `User ${user.email} reactivated by admin.`,
+            description: `User ${user.email} reactivated. Reason: ${reason || 'N/A'}`,
             dbTxn,
         });
 
         await dbTxn.commit();
         logger.info(`Admin ${adminId} reactivated user ${targetUserId}`);
+        return { id: user.id, email: user.email, status: user.status };
+    } catch (err) {
+        await dbTxn.rollback();
+        throw err;
+    }
+}
+
+/**
+ * Re-approve a REJECTED user — sets status back to APPROVED.
+ * Logs USER_REAPPROVED (distinct from reactivation of a suspended user).
+ */
+async function reapproveUser(targetUserId, adminId, reason) {
+    const dbTxn = await sequelize.transaction();
+    try {
+        const user = await User.findByPk(targetUserId, { transaction: dbTxn });
+        if (!user) throw createHttpError(404, 'User not found.');
+        if (user.role === 'ADMIN') throw createHttpError(403, 'Cannot modify an admin account.');
+        if (user.status !== 'REJECTED') {
+            throw createHttpError(400, `reapproveUser expects a REJECTED user, got: ${user.status}`);
+        }
+
+        user.status = 'APPROVED';
+        await user.save({ transaction: dbTxn });
+
+        await logAdminAction({
+            adminId,
+            actionType: 'USER_REAPPROVED',
+            targetUserId,
+            description: `Previously rejected user ${user.email} re-approved. Reason: ${reason || 'N/A'}`,
+            dbTxn,
+        });
+
+        await dbTxn.commit();
+        logger.info(`Admin ${adminId} re-approved user ${targetUserId}`);
         return { id: user.id, email: user.email, status: user.status };
     } catch (err) {
         await dbTxn.rollback();
@@ -200,7 +239,22 @@ async function getFraudFlags({ page = 1, limit = 20, reviewed }) {
         include: [{
             model: Transaction,
             as: 'transaction',
-            attributes: ['id', 'reference_code', 'amount', 'transaction_type', 'createdAt'],
+            // Include status + sender/receiver wallets so the detail drawer can show them
+            attributes: ['id', 'reference_code', 'amount', 'transaction_type', 'status', 'createdAt'],
+            include: [
+                {
+                    model: Wallet,
+                    as: 'senderWallet',
+                    attributes: ['id'],
+                    include: [{ model: User, as: 'owner', attributes: ['id', 'first_name', 'last_name', 'email', 'role'] }],
+                },
+                {
+                    model: Wallet,
+                    as: 'receiverWallet',
+                    attributes: ['id'],
+                    include: [{ model: User, as: 'owner', attributes: ['id', 'first_name', 'last_name', 'email', 'role'] }],
+                },
+            ],
         }],
     });
     return { total: count, page, limit, totalPages: Math.ceil(count / limit), fraudFlags: rows };
@@ -218,6 +272,18 @@ async function reviewFraudFlag(flagId, adminId) {
     flag.reviewed_by = adminId;
     flag.reviewed_at = new Date();
     await flag.save();
+
+    // Log the review action so it appears in admin audit trail
+    try {
+        await logAdminAction({
+            adminId,
+            actionType: 'FRAUD_FLAG_REVIEWED',
+            targetUserId: null,
+            description: `Fraud flag ${flagId} (transaction: ${flag.transaction_id}) marked as reviewed.`,
+        });
+    } catch (logErr) {
+        logger.warn('Failed to write admin log for fraud flag review:', logErr);
+    }
 
     return flag;
 }
@@ -258,6 +324,9 @@ async function getDashboardStats() {
     const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
     const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
     const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6);
+    // For trend calculation: start of current month vs. start of last month
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
     const [
         totalUsers,
@@ -271,8 +340,14 @@ async function getDashboardStats() {
         volumeRows,
         topMerchantRows,
         revenueByMonthRows,
+        // Last-month counts for trend calculation
+        usersLastMonth,
+        customersLastMonth,
+        merchantsLastMonth,
+        transactionsLastMonth,
+        recentActivityLogs,
     ] = await Promise.all([
-        // Basic counts
+        // Current totals
         User.count({ where: { role: { [Op.ne]: 'ADMIN' } } }),
         User.count({ where: { role: 'CUSTOMER' } }),
         User.count({ where: { role: 'MERCHANT' } }),
@@ -333,6 +408,22 @@ async function getDashboardStats() {
             GROUP BY DATE_TRUNC('month', processed_at)
             ORDER BY DATE_TRUNC('month', processed_at) ASC
         `, { replacements: { sixMonthsAgo }, type: sequelize.QueryTypes.SELECT }),
+
+        // Last-month snapshot counts (for trend % calculation)
+        User.count({ where: { role: { [Op.ne]: 'ADMIN' }, createdAt: { [Op.lt]: startOfThisMonth } } }),
+        User.count({ where: { role: 'CUSTOMER', createdAt: { [Op.lt]: startOfThisMonth } } }),
+        User.count({ where: { role: 'MERCHANT', createdAt: { [Op.lt]: startOfThisMonth } } }),
+        Transaction.count({ where: { createdAt: { [Op.lt]: startOfThisMonth } } }),
+
+        // Recent admin activity (last 5 log entries) for the dashboard card
+        AdminLog.findAll({
+            limit: 5,
+            order: [['createdAt', 'DESC']],
+            include: [
+                { model: User, as: 'admin', attributes: ['first_name', 'last_name'] },
+                { model: User, as: 'targetUser', attributes: ['first_name', 'last_name', 'email'] },
+            ],
+        }),
     ]);
 
     const totalRevenue = parseFloat(revenueResult?.total || 0);
@@ -369,6 +460,18 @@ async function getDashboardStats() {
     const revenueSparkline = revenueByMonthRows.map(r => parseFloat(r.revenue));
     const revenueSparklineLabels = revenueByMonthRows.map(r => r.month);
 
+    // Compute trend percentages vs last month
+    function calcTrend(current, previous) {
+        if (!previous || previous === 0) return current > 0 ? 100 : 0;
+        return Math.round(((current - previous) / previous) * 100);
+    }
+    const trends = {
+        totalUsers: calcTrend(totalUsers, usersLastMonth),
+        customerCount: calcTrend(customerCount, customersLastMonth),
+        merchantCount: calcTrend(merchantCount, merchantsLastMonth),
+        totalTransactions: calcTrend(totalTransactions, transactionsLastMonth),
+    };
+
     return {
         totalUsers,
         customerCount,
@@ -383,6 +486,8 @@ async function getDashboardStats() {
         topMerchants,
         revenueSparkline,
         revenueSparklineLabels,
+        trends,
+        recentActivity: recentActivityLogs,
     };
 }
 
@@ -428,12 +533,14 @@ async function getPlatformRevenue({ startDate, endDate } = {}) {
 }
 
 module.exports = {
+    logAdminAction,   // exported for use in withdrawal.service.js and other services
     getPendingUsers,
     getAllUsers,
     approveUser,
     rejectUser,
     suspendUser,
     reactivateUser,
+    reapproveUser,
     getFraudFlags,
     reviewFraudFlag,
     getAdminLogs,

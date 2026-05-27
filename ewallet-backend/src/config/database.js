@@ -32,8 +32,7 @@ const sequelize = new Sequelize(
         },
 
 
-        logging: false,
-        // logging: isProduction ? false : (msg) => logger.debug(msg),
+        logging: isProduction ? false : (msg) => logger.debug(msg),
 
         define: {
             underscored: false,

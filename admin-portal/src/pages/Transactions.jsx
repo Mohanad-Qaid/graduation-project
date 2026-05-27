@@ -7,6 +7,7 @@ import {
 } from 'antd';
 import { SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import { fetchTransactions } from '../store/slices/transactionsSlice';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -29,7 +30,11 @@ function resolveFrom(record) {
 
 function resolveTo(record) {
   const type = record.transaction_type;
-  if (type === 'WITHDRAWAL') return { label: record.counterparty || 'Bank Transfer', sub: null };
+  if (type === 'WITHDRAWAL') {
+    // counterparty = bank_name (set during withdrawal approval)
+    // account holder name is not stored on the Transaction model itself
+    return { label: record.counterparty || 'Bank Transfer', sub: null };
+  }
   const receiver = record.receiverWallet?.owner;
   if (receiver) return { label: receiver.business_name || `${receiver.first_name} ${receiver.last_name}`, sub: receiver.email };
   return { label: '—', sub: null };
@@ -37,7 +42,8 @@ function resolveTo(record) {
 
 const Transactions = () => {
   const dispatch = useDispatch();
-  const { list, pagination, isLoading } = useSelector((state) => state.transactions);
+  const { list, pagination, isLoading, error } = useSelector((state) => state.transactions);
+  useErrorToast(error, 'Failed to load transactions');
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialRef = searchParams.get('ref') || '';

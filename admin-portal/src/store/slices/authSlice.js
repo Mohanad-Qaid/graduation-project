@@ -22,20 +22,46 @@ export const login = createAsyncThunk(
   }
 );
 
-// Restore session from localStorage — backend has no /auth/me endpoint
+// Decode the JWT payload without a library — JWTs are just base64 JSON.
+// This reads the `exp` field (expiry timestamp in seconds) from the token itself,
+// so we can reject stale sessions without any network request.
+function getTokenExpiry(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp ?? null; // seconds since epoch
+  } catch {
+    return null;
+  }
+}
+
+// Restore session from localStorage.
+// Validates the JWT expiry client-side before allowing access.
+// If the token is expired, clear storage immediately — no server call needed.
 export const loadAdmin = createAsyncThunk(
   'auth/loadAdmin',
   async (_, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('accessToken');
       const adminRaw = localStorage.getItem('admin');
+
       if (!token || !adminRaw) return null;
+
+      // Check expiry directly from the JWT payload (no backend needed)
+      const exp = getTokenExpiry(token);
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      if (!exp || nowInSeconds >= exp) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('admin');
+        return rejectWithValue('Session expired');
+      }
+
       const admin = JSON.parse(adminRaw);
       if (admin.role !== 'ADMIN') {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('admin');
         return rejectWithValue('Access denied');
       }
+
       return admin;
     } catch {
       localStorage.removeItem('accessToken');

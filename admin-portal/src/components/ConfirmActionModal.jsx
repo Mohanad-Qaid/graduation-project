@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input } from 'antd';
 import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
@@ -31,8 +31,15 @@ const ConfirmActionModal = ({
   const [comment, setComment] = useState('');
   const { admin } = useSelector((state) => state.auth);
 
+  // Reset the comment every time the modal opens so stale text never carries over
+  useEffect(() => {
+    if (open) setComment('');
+  }, [open]);
+
   const handleConfirm = () => {
     onConfirm(comment.trim());
+    // Reset immediately so if the parent re-opens the modal, the field is empty
+    setComment('');
   };
 
   const handleCancel = () => {
@@ -41,6 +48,8 @@ const ConfirmActionModal = ({
   };
 
   const isConfirmDisabled = commentRequired && comment.trim().length === 0;
+
+  // Always say "required" when the field is mandatory — never say "optional" misleadingly
   const placeholder = commentRequired
     ? 'Reason is required for this action…'
     : 'Add a comment (optional)…';

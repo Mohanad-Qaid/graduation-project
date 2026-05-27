@@ -13,6 +13,9 @@ export const store = configureStore({
     transactions: transactionsReducer,
     withdrawals: withdrawalsReducer,
   },
+  // Explicitly enable Redux DevTools (it is enabled by default in dev mode by Redux Toolkit,
+  // but this ensures it is explicitly configured).
+  devTools: true,
 });
 
 export default store;

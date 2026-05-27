@@ -9,19 +9,30 @@ import {
   RightOutlined, FireOutlined,
 } from '@ant-design/icons';
 import { fetchDashboardStats } from '../store/slices/dashboardSlice';
+import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-// Constants removed - using real data from backend
 // ── Mini sparkline rendered with SVG ─────────────────────────────────────────
+// Guard: requires at least 2 data points with valid numbers to render.
 function Sparkline({ data, color = '#6200EE', height = 40, width = 120 }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
+  const validData = (data || []).filter((v) => typeof v === 'number' && !isNaN(v));
+  if (validData.length < 2) {
+    // Not enough data — show a flat placeholder line instead of NaN SVG errors
+    return (
+      <svg width={width} height={height} style={{ overflow: 'visible' }}>
+        <line x1="0" y1={height / 2} x2={width} y2={height / 2}
+          stroke={color} strokeWidth="1.5" strokeDasharray="4 3" strokeOpacity="0.4" />
+      </svg>
+    );
+  }
+  const max = Math.max(...validData);
+  const min = Math.min(...validData);
   const range = max - min || 1;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * width;
+  const pts = validData.map((v, i) => {
+    const x = (i / (validData.length - 1)) * width;
     const y = height - ((v - min) / range) * height;
     return `${x},${y}`;
   });
@@ -89,7 +100,7 @@ function KpiCard({ title, value, sub, icon, color, trend, sparkData, onClick }) 
             {value}
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>{sub}</div>
-          {trend !== undefined && (
+          {trend !== undefined && trend !== null && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 3,
               fontSize: 12, fontWeight: 600,
@@ -98,7 +109,7 @@ function KpiCard({ title, value, sub, icon, color, trend, sparkData, onClick }) 
               borderRadius: 20, padding: '2px 8px',
             }}>
               {trend >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-              {Math.abs(trend)}% vs last week
+              {Math.abs(trend)}% vs last month
             </span>
           )}
         </div>
@@ -125,16 +136,21 @@ function KpiCard({ title, value, sub, icon, color, trend, sparkData, onClick }) 
 const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { stats } = useSelector((state) => state.dashboard);
+  const { stats, isLoading, error } = useSelector((state) => state.dashboard);
   const { admin } = useSelector((state) => state.auth);
+  useErrorToast(error, 'Failed to load dashboard data');
 
-  // Live data from Redux
+  // Live data from Redux — all with safe fallbacks
   const volumeData = stats?.volumeBreakdown?.length ? stats.volumeBreakdown : [];
-  const volumeTotal = stats?.volumeTotal ? stats.volumeTotal : 0;
+  const volumeTotal = stats?.volumeTotal ?? 0;
   const merchantList = stats?.topMerchants?.length ? stats.topMerchants : [];
-  const sparkline = stats?.revenueSparkline?.length ? stats.revenueSparkline : [0];
+  // Only pass sparkline data to Sparkline if we have valid numbers; the component guards against < 2 points
+  const sparkline = stats?.revenueSparkline?.length ? stats.revenueSparkline : [];
   const sparkLabels = stats?.revenueSparklineLabels?.length ? stats.revenueSparklineLabels : [];
+  // recentActivity: array of AdminLog objects from the backend
   const recentLogs = stats?.recentActivity?.length ? stats.recentActivity : [];
+  // Real trend data from backend (% change vs last month)
+  const trends = stats?.trends ?? {};
 
   useEffect(() => {
     dispatch(fetchDashboardStats());
@@ -186,7 +202,7 @@ const Dashboard = () => {
             Platform Revenue (MTD)
           </div>
           <div style={{ fontSize: 38, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
-            ₺{(stats?.totalRevenue ?? 24800).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+            ₺{(stats?.totalRevenue ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: 12, color: '#A78BFA', marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
             <ArrowUpOutlined /> +12.4% from last month
@@ -205,8 +221,8 @@ const Dashboard = () => {
               : 'Registered accounts on the platform',
             icon: <TeamOutlined />,
             color: '#6200EE',
-            trend: 8,
-            sparkData: [30, 45, 38, 60, 55, 70, 65, 80, 74, 90, 85, 98],
+            trend: trends.totalUsers,
+            sparkData: null,
             route: '/users',
           },
           {
@@ -215,8 +231,8 @@ const Dashboard = () => {
             sub: 'Payments processed across the platform',
             icon: <TransactionOutlined />,
             color: '#2196F3',
-            trend: 14,
-            sparkData: [40, 55, 48, 72, 65, 88, 76, 95, 82, 110, 98, 125],
+            trend: trends.totalTransactions,
+            sparkData: null,
             route: '/transactions',
           },
           {
@@ -225,8 +241,8 @@ const Dashboard = () => {
             sub: 'Awaiting admin approval',
             icon: <BankOutlined />,
             color: '#F59E0B',
-            trend: -3,
-            sparkData: [5, 8, 6, 12, 9, 7, 11, 8, 10, 6, 9, 7],
+            trend: undefined,
+            sparkData: null,
             route: '/withdrawal-requests',
           },
           {
@@ -235,8 +251,8 @@ const Dashboard = () => {
             sub: 'Unreviewed suspicious activity',
             icon: <WarningOutlined />,
             color: '#EF4444',
-            trend: -18,
-            sparkData: [8, 12, 7, 15, 10, 9, 14, 8, 11, 6, 5, 3],
+            trend: undefined,
+            sparkData: null,
             route: '/suspicious',
           },
         ].map(card => (
@@ -364,31 +380,47 @@ const Dashboard = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {recentLogs.map((item, idx) => (
-                <div key={item.id} style={{ display: 'flex', gap: 16, paddingBottom: idx < recentLogs.length - 1 ? 16 : 0, position: 'relative' }}>
-                  {/* Timeline connector line */}
-                  {idx < recentLogs.length - 1 && (
-                    <div style={{ position: 'absolute', left: 15, top: 32, bottom: 0, width: 2, background: '#F3F4F6', zIndex: 0 }} />
-                  )}
-                  {/* Dot */}
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: `${item.color}18`,
-                    border: `2px solid ${item.color}40`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, zIndex: 1,
-                  }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
-                  </div>
-                  {/* Text */}
-                  <div style={{ flex: 1, paddingTop: 4 }}>
-                    <div style={{ fontSize: 13, color: '#374151', fontWeight: 500, lineHeight: 1.4 }}>{item.text}</div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
-                      {item.time.includes('ago') ? item.time : dayjs(item.time).fromNow()}
+              {recentLogs.length === 0 ? (
+                <div style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+                  No recent admin activity to display.
+                </div>
+              ) : recentLogs.map((item, idx) => {
+                // Backend shape: { id, action_type, description, createdAt, admin: { first_name, last_name }, targetUser: {...} }
+                const adminName = item.admin ? `${item.admin.first_name} ${item.admin.last_name}` : 'Admin';
+                const actionLabel = (item.action_type || '').replace(/_/g, ' ');
+                const dotColor = item.action_type?.includes('APPROVED') || item.action_type?.includes('REACTIVATED')
+                  ? '#10B981'
+                  : item.action_type?.includes('REJECTED') || item.action_type?.includes('SUSPENDED')
+                    ? '#EF4444'
+                    : '#6200EE';
+                return (
+                  <div key={item.id} style={{ display: 'flex', gap: 16, paddingBottom: idx < recentLogs.length - 1 ? 16 : 0, position: 'relative' }}>
+                    {idx < recentLogs.length - 1 && (
+                      <div style={{ position: 'absolute', left: 15, top: 32, bottom: 0, width: 2, background: '#F3F4F6', zIndex: 0 }} />
+                    )}
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      background: `${dotColor}18`,
+                      border: `2px solid ${dotColor}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, zIndex: 1,
+                    }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor }} />
+                    </div>
+                    <div style={{ flex: 1, paddingTop: 4 }}>
+                      <div style={{ fontSize: 13, color: '#374151', fontWeight: 500, lineHeight: 1.4 }}>
+                        {adminName} — {actionLabel}
+                      </div>
+                      {item.description && (
+                        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1, lineHeight: 1.4 }}>{item.description}</div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                        {dayjs(item.createdAt).fromNow()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Col>

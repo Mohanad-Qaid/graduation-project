@@ -9,6 +9,7 @@ import {
   WarningOutlined, CheckCircleOutlined, UserOutlined,
   CopyOutlined, LinkOutlined, StopOutlined, EyeOutlined,
 } from '@ant-design/icons';
+import { useErrorToast } from '../hooks/useErrorToast';
 import { fetchFraudFlags, reviewFraudFlag } from '../store/slices/transactionsSlice';
 import { suspendUser } from '../store/slices/usersSlice';
 import ConfirmActionModal from '../components/ConfirmActionModal';
@@ -17,9 +18,11 @@ import dayjs from 'dayjs';
 const SuspiciousTransactions = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { fraudFlags, fraudFlagsMeta, isLoading, loadingFlagId } = useSelector(
+  const { fraudFlags, fraudFlagsMeta, isLoading, loadingFlagId, error } = useSelector(
     (state) => state.transactions
   );
+  const reload = (reviewed = showReviewed) => load(fraudFlagsMeta?.page || 1, reviewed);
+  useErrorToast(error, 'Failed to load suspicious activity');
 
   const [showReviewed, setShowReviewed] = useState(false);
 

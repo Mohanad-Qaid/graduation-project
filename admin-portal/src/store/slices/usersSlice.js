@@ -7,10 +7,9 @@ export const fetchUsers = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/admin/users', { params });
-      // Return the full response.data which contains { success, message, data: users, meta: pagination }
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch users');
     }
   }
 );
@@ -23,7 +22,7 @@ export const fetchPendingUsers = createAsyncThunk(
       const response = await api.get('/admin/users/pending');
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch pending users');
+      return rejectWithValue(error.readableMessage || 'Failed to fetch pending users');
     }
   }
 );
@@ -36,12 +35,11 @@ export const approveUser = createAsyncThunk(
       await api.patch(`/admin/users/${userId}/approve`);
       return userId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to approve user');
+      return rejectWithValue(error.readableMessage || 'Failed to approve user');
     }
   }
 );
 
-// PATCH /admin/users/:userId/reject
 export const rejectUser = createAsyncThunk(
   'users/reject',
   async ({ userId, reason }, { rejectWithValue }) => {
@@ -49,12 +47,11 @@ export const rejectUser = createAsyncThunk(
       await api.patch(`/admin/users/${userId}/reject`, { reason });
       return userId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to reject user');
+      return rejectWithValue(error.readableMessage || 'Failed to reject user');
     }
   }
 );
 
-// PATCH /admin/users/:userId/suspend
 export const suspendUser = createAsyncThunk(
   'users/suspend',
   async ({ userId, reason }, { rejectWithValue }) => {
@@ -62,7 +59,7 @@ export const suspendUser = createAsyncThunk(
       await api.patch(`/admin/users/${userId}/suspend`, { reason });
       return userId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to suspend user');
+      return rejectWithValue(error.readableMessage || 'Failed to suspend user');
     }
   }
 );
@@ -74,7 +71,21 @@ export const activateUser = createAsyncThunk(
       await api.patch(`/admin/users/${userId}/reactivate`, { reason });
       return userId;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to reactivate user');
+      return rejectWithValue(error.readableMessage || 'Failed to reactivate user');
+    }
+  }
+);
+
+// Re-approve a previously REJECTED user — calls the dedicated /reapprove endpoint
+// so the action is logged as USER_REAPPROVED, distinct from USER_REACTIVATED.
+export const reapproveUser = createAsyncThunk(
+  'users/reapprove',
+  async ({ userId, reason }, { rejectWithValue }) => {
+    try {
+      await api.patch(`/admin/users/${userId}/reapprove`, { reason });
+      return userId;
+    } catch (error) {
+      return rejectWithValue(error.readableMessage || 'Failed to re-approve user');
     }
   }
 );
@@ -87,7 +98,7 @@ export const topupUser = createAsyncThunk(
       const response = await api.post(`/admin/users/${userId}/topup`, { amount, description });
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to top up user wallet');
+      return rejectWithValue(error.readableMessage || 'Failed to top up user wallet');
     }
   }
 );
@@ -144,6 +155,12 @@ const usersSlice = createSlice({
         if (user) user.status = 'SUSPENDED';
       })
       .addCase(activateUser.fulfilled, (state, action) => {
+        const user = state.list.find((u) => u.id === action.payload);
+        if (user) user.status = 'APPROVED';
+      })
+      .addCase(reapproveUser.fulfilled, (state, action) => {
+        // Remove from pending list and update status in the main list
+        state.pending = state.pending.filter((u) => u.id !== action.payload);
         const user = state.list.find((u) => u.id === action.payload);
         if (user) user.status = 'APPROVED';
       });
