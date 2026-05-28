@@ -28,7 +28,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    // On 401: only redirect to login if this was NOT the login request itself.
+    // If we redirect on login failures, the page reloads before the error is shown.
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       // Attempt to inform the backend of the logout (best-effort)
       try {
         const token = localStorage.getItem('accessToken');

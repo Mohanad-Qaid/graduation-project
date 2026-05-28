@@ -9,15 +9,67 @@ export const login = createAsyncThunk(
       // Backend response shape: { success, message, data: { accessToken, refreshToken, user } }
       const { accessToken, user } = response.data.data;
       if (user.role !== 'ADMIN') {
-        return rejectWithValue('Access denied. Admin accounts only.');
+        return rejectWithValue({ code: 'FORBIDDEN', message: 'Access denied. Admin accounts only.' });
       }
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('admin', JSON.stringify(user));
       return { accessToken, user };
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Login failed'
-      );
+      const status = error.response?.status;
+      const backendMsg = error.response?.data?.message;
+
+      // Server offline / network failure — no HTTP response at all
+      if (!error.response) {
+        return rejectWithValue({
+          code: 'OFFLINE',
+          message: 'Cannot reach the server. Check your network or ensure the backend is running.',
+        });
+      }
+
+      // 429 — IP rate-limiter OR per-account 3-attempt soft lockout
+      if (status === 429) {
+        return rejectWithValue({
+          code: 'RATE_LIMITED',
+          message: backendMsg || 'Too many login attempts. Please wait before trying again.',
+        });
+      }
+
+      // 403 — wrong role, or account status (suspended / pending)
+      if (status === 403) {
+        return rejectWithValue({
+          code: 'FORBIDDEN',
+          message: backendMsg || 'Access denied.',
+        });
+      }
+
+      // 401 — wrong email or password
+      if (status === 401) {
+        return rejectWithValue({
+          code: 'INVALID_CREDENTIALS',
+          message: 'Incorrect email or password. Please check your credentials and try again.',
+        });
+      }
+
+      // 400 — express-validator field error
+      if (status === 400) {
+        return rejectWithValue({
+          code: 'VALIDATION',
+          message: backendMsg || 'Please check your inputs and try again.',
+        });
+      }
+
+      // 5xx — backend crash / DB down
+      if (status >= 500) {
+        return rejectWithValue({
+          code: 'SERVER_ERROR',
+          message: 'The server encountered an error. Please try again shortly.',
+        });
+      }
+
+      return rejectWithValue({
+        code: 'UNKNOWN',
+        message: backendMsg || 'An unexpected error occurred. Please try again.',
+      });
     }
   }
 );

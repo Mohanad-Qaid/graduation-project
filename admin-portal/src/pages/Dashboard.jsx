@@ -144,11 +144,9 @@ const Dashboard = () => {
   const volumeData = stats?.volumeBreakdown?.length ? stats.volumeBreakdown : [];
   const volumeTotal = stats?.volumeTotal ?? 0;
   const merchantList = stats?.topMerchants?.length ? stats.topMerchants : [];
-  // Only pass sparkline data to Sparkline if we have valid numbers; the component guards against < 2 points
-  const sparkline = stats?.revenueSparkline?.length ? stats.revenueSparkline : [];
-  const sparkLabels = stats?.revenueSparklineLabels?.length ? stats.revenueSparklineLabels : [];
-  // recentActivity: array of AdminLog objects from the backend
-  const recentLogs = stats?.recentActivity?.length ? stats.recentActivity : [];
+  // revenueSparkline/Labels removed — chart section deleted from Top Merchants card
+  // recentActivity: array of AdminLog objects — cap at 4 for the dashboard preview
+  const recentLogs = (stats?.recentActivity ?? []).slice(0, 4);
   // Real trend data from backend (% change vs last month)
   const trends = stats?.trends ?? {};
 
@@ -450,16 +448,14 @@ const Dashboard = () => {
               ))}
             </div>
 
-            {/* Revenue trend mini-chart */}
-            <div style={{ marginTop: 24, padding: '16px 0 0', borderTop: '1px solid #F3F4F6' }}>
-              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>Platform fee revenue — last 6 months</div>
-              <Sparkline data={sparkline} color="#6200EE" width={280} height={48} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {sparkLabels.map(l => (
-                  <span key={l} style={{ fontSize: 10, color: '#D1D5DB' }}>{l}</span>
-                ))}
-              </div>
-            </div>
+            <button
+              onClick={() => navigate('/users?role=MERCHANT')}
+              style={{ marginTop: 24, width: '100%', background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 12, padding: '12px', cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 600, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#374151'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280'; }}
+            >
+              View All Merchants
+            </button>
           </div>
         </Col>
       </Row>
