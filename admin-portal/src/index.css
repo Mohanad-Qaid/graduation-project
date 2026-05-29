@@ -754,3 +754,74 @@
   .ant-spin-dot-item {
     background-color: var(--accent) !important;
   }
+
+  /* ══ MOBILE RESPONSIVENESS ══════════════════════════════════════ */
+  @media screen and (max-width: 768px) {
+    /* Hide the fixed desktop sidebar */
+    .admin-sider-desktop {
+      display: none !important;
+    }
+
+    /* Remove the margin left that was making space for the sidebar */
+    .admin-layout-main {
+      margin-left: 0 !important;
+    }
+
+    /* Show hamburger menu */
+    .mobile-menu-btn {
+      display: inline-block !important;
+    }
+
+    /* Shrink the header padding and height to save space */
+    .admin-header {
+      padding: 0 16px !important;
+    }
+
+    /* Shrink the main content padding */
+    .admin-content {
+      padding: 16px !important;
+    }
+
+    /* Shrink card padding */
+    .ant-card-head {
+      padding: 12px 16px !important;
+    }
+    .ant-card-body {
+      padding: 16px 16px !important;
+    }
+
+    /* Make page titles smaller */
+    .page-title {
+      font-size: 18px !important;
+    }
+
+    /* Ensure table wrappers can scroll horizontally and don't break flex containers */
+    .ant-table-wrapper {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    
+    /* Slightly smaller table text for mobile */
+    .ant-table-tbody>tr>td {
+      font-size: 13px !important;
+      padding: 10px 12px !important;
+    }
+
+    /* Make drawer menu dark like the main sidebar */
+    .mobile-drawer .ant-drawer-content {
+      background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%) !important;
+    }
+    .mobile-drawer .ant-drawer-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+      padding: 16px 20px !important;
+    }
+    .mobile-drawer .ant-drawer-title {
+      color: #fff !important;
+    }
+    .mobile-drawer .ant-drawer-close {
+      color: rgba(255,255,255,0.6) !important;
+    }
+    .mobile-drawer .ant-drawer-body {
+      padding: 0 !important;
+    }
+  }

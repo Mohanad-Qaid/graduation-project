@@ -170,7 +170,11 @@ const PendingRegistrations = () => {
             columns={columns}
             rowKey="id"
             loading={isLoading}
-            pagination={{ pageSize: 10 }}
+            pagination={{ 
+              pageSize: 10,
+              showTotal: (total) => `${total} pending requests`
+            }}
+            scroll={{ x: 'max-content' }}
           />
         )}
       </Card>

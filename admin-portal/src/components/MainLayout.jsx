@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Layout, Menu, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Drawer, Button } from 'antd';
 import {
   DashboardOutlined,
   UserOutlined,
@@ -14,6 +14,7 @@ import {
   UserAddOutlined,
   WalletOutlined,
   CaretDownOutlined,
+  MenuOutlined,
 } from '@ant-design/icons';
 import { logout } from '../store/slices/authSlice';
 
@@ -73,9 +74,16 @@ const MainLayout = ({ children }) => {
   const dispatch = useDispatch();
   const { admin } = useSelector((state) => state.auth);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
   const handleLogout = async () => {
     await dispatch(logout());
     navigate('/login');
+  };
+
+  const handleMenuClick = (key) => {
+    navigate(key);
+    setMobileMenuOpen(false); // Close drawer on mobile after clicking
   };
 
   const userMenuItems = [
@@ -104,11 +112,38 @@ const MainLayout = ({ children }) => {
 
   const currentPage = getPageLabel(location.pathname);
 
+  const sidebarContent = (
+    <>
+      <div className="sidebar-logo">
+        <div className="sidebar-logo-icon">
+          <WalletOutlined style={{ color: '#fff', fontSize: 18 }} />
+        </div>
+        <div className="sidebar-logo-text">
+          <span className="sidebar-logo-title">E-Wallet</span>
+          <span className="sidebar-logo-sub">Admin Console</span>
+        </div>
+      </div>
+      {MENU_SECTIONS.map((section) => (
+        <div key={section.label}>
+          <div className="sidebar-section-label">{section.label}</div>
+          <Menu
+            className="admin-sider"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={section.items}
+            onClick={({ key }) => handleMenuClick(key)}
+            style={{ background: 'transparent', border: 'none' }}
+          />
+        </div>
+      ))}
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      {/* ── Sidebar ── */}
+      {/* ── Desktop Sidebar ── */}
       <Sider
-        className="admin-sider"
+        className="admin-sider admin-sider-desktop"
         width={256}
         style={{
           overflow: 'auto',
@@ -117,39 +152,43 @@ const MainLayout = ({ children }) => {
           left: 0, top: 0, bottom: 0,
         }}
       >
-        {/* Logo */}
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">
-            <WalletOutlined style={{ color: '#fff', fontSize: 18 }} />
-          </div>
-          <div className="sidebar-logo-text">
-            <span className="sidebar-logo-title">E-Wallet</span>
-            <span className="sidebar-logo-sub">Admin Console</span>
-          </div>
-        </div>
-
-        {/* Sectioned menu */}
-        {MENU_SECTIONS.map((section) => (
-          <div key={section.label}>
-            <div className="sidebar-section-label">{section.label}</div>
-            <Menu
-              className="admin-sider"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              items={section.items}
-              onClick={({ key }) => navigate(key)}
-              style={{ background: 'transparent', border: 'none' }}
-            />
-          </div>
-        ))}
+        {sidebarContent}
       </Sider>
 
+      {/* ── Mobile Drawer Sidebar ── */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <WalletOutlined style={{ color: '#fff', fontSize: 18 }} />
+            <span style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>E-Wallet Admin</span>
+          </div>
+        }
+        placement="left"
+        closable={true}
+        onClose={() => setMobileMenuOpen(false)}
+        open={mobileMenuOpen}
+        width={260}
+        className="mobile-drawer"
+      >
+        {/* We reuse the sidebarContent, but hide the internal logo since Drawer has a title */}
+        <div style={{ marginTop: '-64px' }}>
+          {sidebarContent}
+        </div>
+      </Drawer>
+
       {/* ── Main area ── */}
-      <Layout style={{ marginLeft: 256 }}>
+      <Layout className="admin-layout-main" style={{ marginLeft: 256 }}>
         {/* Header */}
         <Header className="admin-header">
-          {/* Breadcrumb */}
+          {/* Breadcrumb & Mobile Menu Toggle */}
           <div className="header-breadcrumb">
+            <Button
+              className="mobile-menu-btn"
+              type="text"
+              icon={<MenuOutlined style={{ fontSize: 18, color: '#1A1D35' }} />}
+              onClick={() => setMobileMenuOpen(true)}
+              style={{ padding: '0 8px', marginLeft: '-12px', display: 'none' }}
+            />
             <div className="header-breadcrumb-icon">
               {currentPage.icon}
             </div>
