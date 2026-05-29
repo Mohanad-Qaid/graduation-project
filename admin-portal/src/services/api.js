@@ -1,13 +1,14 @@
 import axios from 'axios';
 
-// Base URL matches the backend's /api/v1 prefix
-const API_URL = '/api/v1';
+// Use the provided environment variable (for Ngrok/Netlify), otherwise fallback to the local proxy
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true'
   },
 });
 
