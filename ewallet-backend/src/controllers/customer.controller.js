@@ -24,7 +24,8 @@ async function getWallet(req, res, next) {
  */
 async function topUp(req, res, next) {
     try {
-        const txn = await walletService.topUpWallet({ userId: req.user.id, amount, transactionIp: req.ip });
+        const { amount, paymentIntentId } = req.body;
+        const txn = await walletService.topUpWallet({ userId: req.user.id, amount, paymentIntentId, transactionIp: req.ip });
         return sendSuccess(res, { statusCode: 201, message: 'Top-up successful.', data: txn });
     } catch (err) {
         next(err);

@@ -28,7 +28,7 @@ async function getPendingUsers() {
         // may have registered but never confirmed, so admins should not act on them.
         where: { status: 'PENDING', email_verified: true },
         attributes: ['id', 'first_name', 'last_name', 'business_name', 'business_category', 'email', 'phone', 'role', 'status', 'registration_country', 'registration_city', 'createdAt'],
-        order: [['createdAt', 'ASC']],
+        order: [['createdAt', 'DESC']],
     });
 }
 

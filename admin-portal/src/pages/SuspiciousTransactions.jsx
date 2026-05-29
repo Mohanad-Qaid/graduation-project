@@ -66,7 +66,7 @@ const SuspiciousTransactions = () => {
     setIsSuspending(true);
     try {
       await dispatch(suspendUser({ userId: suspendModal.userId, reason })).unwrap();
-      message.success('Sender suspended successfully.');
+      message.success('User suspended successfully.');
       setSuspendModal({ visible: false, userId: null });
       closeDrawer();
       load(fraudFlagsMeta?.page || 1, showReviewed);
@@ -141,18 +141,23 @@ const SuspiciousTransactions = () => {
       },
     },
     {
-      title: 'Sender',
+      title: 'Suspect',
       key: 'sender',
       render: (_, record) => {
-        const owner = record.transaction?.senderWallet?.owner;
-        if (!owner) return <span style={{ color: '#bbb' }}>—</span>;
+        const txnType = record.transaction?.transaction_type;
+        const senderOwner = record.transaction?.senderWallet?.owner;
+        const receiverOwner = record.transaction?.receiverWallet?.owner;
+        // For TOPUP, the suspect is the receiver (the customer), not Stripe
+        const suspect = txnType === 'TOPUP' ? receiverOwner : senderOwner;
+        if (!suspect) return <span style={{ color: '#bbb' }}>—</span>;
         return (
           <Tooltip title="View in User Management">
-            <Typography.Link onClick={() => goToUser(owner.email)}>
+            <Typography.Link onClick={() => goToUser(suspect.email)}>
               <div style={{ fontWeight: 500, fontSize: 13 }}>
-                {`${owner.first_name} ${owner.last_name}`}
+                {`${suspect.first_name} ${suspect.last_name}`}
               </div>
-              <div style={{ fontSize: 11, color: '#999' }}>{owner.email}</div>
+              <div style={{ fontSize: 11, color: '#999' }}>{suspect.email}</div>
+              {txnType === 'TOPUP' && <Tag color="purple" style={{ marginTop: 2, fontSize: 10 }}>RECEIVER</Tag>}
             </Typography.Link>
           </Tooltip>
         );
@@ -241,14 +246,27 @@ const SuspiciousTransactions = () => {
         footer={
           selectedFlag && !selectedFlag.reviewed ? (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              {sender && (
-                <Button
-                  danger
-                  icon={<StopOutlined />}
-                  onClick={() => setSuspendModal({ visible: true, userId: sender.id })}
-                >
-                  Suspend Sender
-                </Button>
+              {/* For TOPUP, the suspect is the receiver; for other types it's the sender */}
+              {txn?.transaction_type === 'TOPUP' ? (
+                receiver && (
+                  <Button
+                    danger
+                    icon={<StopOutlined />}
+                    onClick={() => setSuspendModal({ visible: true, userId: receiver.id })}
+                  >
+                    Suspend Receiver
+                  </Button>
+                )
+              ) : (
+                sender && (
+                  <Button
+                    danger
+                    icon={<StopOutlined />}
+                    onClick={() => setSuspendModal({ visible: true, userId: sender.id })}
+                  >
+                    Suspend Sender
+                  </Button>
+                )
               )}
               <Button
                 type="primary"
@@ -304,36 +322,39 @@ const SuspiciousTransactions = () => {
 
             <Divider orientation="left" plain style={{ fontSize: 12, color: '#9ca3af' }}>Sender (From)</Divider>
             {sender ? (
-              <Descriptions column={1} size="small" style={{ marginBottom: 8 }}>
-                <Descriptions.Item label="Name"><strong>{`${sender.first_name} ${sender.last_name}`}</strong></Descriptions.Item>
-                <Descriptions.Item label="Email">{sender.email}</Descriptions.Item>
-                <Descriptions.Item label="Role">
-                  <Tag color={sender.role === 'MERCHANT' ? 'purple' : 'blue'}>{sender.role}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="">
-                  <Button type="link" size="small" icon={<UserOutlined />} style={{ padding: 0 }} onClick={() => goToUser(sender.email)}>
-                    View in User Management
-                  </Button>
-                </Descriptions.Item>
-              </Descriptions>
+              <div>
+                <Descriptions column={1} size="small" style={{ marginBottom: 8 }}>
+                  <Descriptions.Item label="Name"><strong>{`${sender.first_name} ${sender.last_name}`}</strong></Descriptions.Item>
+                  <Descriptions.Item label="Email">{sender.email}</Descriptions.Item>
+                  <Descriptions.Item label="Role">
+                    <Tag color={sender.role === 'MERCHANT' ? 'purple' : 'blue'}>{sender.role}</Tag>
+                  </Descriptions.Item>
+                </Descriptions>
+                <Button type="link" size="small" icon={<UserOutlined />} style={{ padding: 0, marginTop: 4 }} onClick={() => goToUser(sender.email)}>
+                  View in User Management
+                </Button>
+              </div>
             ) : (
-              <p style={{ color: '#9ca3af', fontSize: 13 }}>No sender data (system / top-up).</p>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontWeight: 600, color: '#0369a1', fontSize: 13 }}> External Top-Up via Stripe</div>
+                <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>funds came from an external Stripe payment.</div>
+              </div>
             )}
 
             <Divider orientation="left" plain style={{ fontSize: 12, color: '#9ca3af' }}>Receiver (To)</Divider>
             {receiver ? (
-              <Descriptions column={1} size="small" style={{ marginBottom: 8 }}>
-                <Descriptions.Item label="Name"><strong>{`${receiver.first_name} ${receiver.last_name}`}</strong></Descriptions.Item>
-                <Descriptions.Item label="Email">{receiver.email}</Descriptions.Item>
-                <Descriptions.Item label="Role">
-                  <Tag color={receiver.role === 'MERCHANT' ? 'purple' : 'blue'}>{receiver.role}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="">
-                  <Button type="link" size="small" icon={<UserOutlined />} style={{ padding: 0 }} onClick={() => goToUser(receiver.email)}>
-                    View in User Management
-                  </Button>
-                </Descriptions.Item>
-              </Descriptions>
+              <div>
+                <Descriptions column={1} size="small" style={{ marginBottom: 8 }}>
+                  <Descriptions.Item label="Name"><strong>{`${receiver.first_name} ${receiver.last_name}`}</strong></Descriptions.Item>
+                  <Descriptions.Item label="Email">{receiver.email}</Descriptions.Item>
+                  <Descriptions.Item label="Role">
+                    <Tag color={receiver.role === 'MERCHANT' ? 'purple' : 'blue'}>{receiver.role}</Tag>
+                  </Descriptions.Item>
+                </Descriptions>
+                <Button type="link" size="small" icon={<UserOutlined />} style={{ padding: 0, marginTop: 4 }} onClick={() => goToUser(receiver.email)}>
+                  View in User Management
+                </Button>
+              </div>
             ) : (
               <p style={{ color: '#9ca3af', fontSize: 13 }}>No receiver data (withdrawal).</p>
             )}

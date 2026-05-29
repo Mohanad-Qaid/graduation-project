@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Button, Tag, Space, Card, Typography, message, Empty } from 'antd';
-import { CheckOutlined, CloseOutlined, UserOutlined, ShopOutlined } from '@ant-design/icons';
+import { Table, Button, Tag, Space, Card, Typography, message, Empty, Input } from 'antd';
+import { CheckOutlined, CloseOutlined, UserOutlined, ShopOutlined, SearchOutlined } from '@ant-design/icons';
 import { fetchPendingUsers, approveUser, rejectUser } from '../store/slices/usersSlice';
+import { clearError } from '../store/slices/usersSlice';
 import ConfirmActionModal from '../components/ConfirmActionModal';
 import { useErrorToast } from '../hooks/useErrorToast';
 import dayjs from 'dayjs';
@@ -12,9 +13,10 @@ const { Title } = Typography;
 const PendingRegistrations = () => {
   const dispatch = useDispatch();
   const { pending, isLoading, error } = useSelector((state) => state.users);
-  const reload = () => dispatch(fetchPendingUsers());
   useErrorToast(error, 'Failed to load pending registrations');
 
+  // Search filter (client-side, applied to the already-fetched list)
+  const [search, setSearch] = useState('');
 
   // Single unified modal state: { visible, type ('approve'|'reject'), userId }
   const [modal, setModal] = useState({ visible: false, type: null, userId: null });
@@ -22,6 +24,10 @@ const PendingRegistrations = () => {
 
   useEffect(() => {
     dispatch(fetchPendingUsers());
+    // Cleanup: clear any stale error when leaving the page
+    return () => {
+      dispatch(clearError());
+    };
   }, [dispatch]);
 
   const openModal = (type, userId) => {
@@ -43,12 +49,24 @@ const PendingRegistrations = () => {
         message.success('Registration rejected.');
       }
       closeModal();
-    } catch (error) {
-      message.error(error || 'Something went wrong. Please try again.');
+    } catch (err) {
+      message.error(err || 'Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Filter the fetched list client-side based on the search input
+  const filteredPending = (pending ?? []).filter((u) => {
+    if (!search.trim()) return true;
+    const term = search.trim().toLowerCase();
+    const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase();
+    return (
+      fullName.includes(term) ||
+      (u.email ?? '').toLowerCase().includes(term) ||
+      (u.business_name ?? '').toLowerCase().includes(term)
+    );
+  });
 
   const columns = [
     {
@@ -154,7 +172,6 @@ const PendingRegistrations = () => {
     },
   ];
 
-
   const isReject = modal.type === 'reject';
 
   return (
@@ -162,17 +179,29 @@ const PendingRegistrations = () => {
       <Title level={4} style={{ marginBottom: 24 }}>Pending Registrations</Title>
 
       <Card>
-        {(pending ?? []).length === 0 ? (
-          <Empty description="No pending registrations" />
+        {/* Search bar */}
+        <div style={{ marginBottom: 16 }}>
+          <Input
+            prefix={<SearchOutlined style={{ color: '#aaa' }} />}
+            placeholder="Search by name, email, or business..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            allowClear
+            style={{ maxWidth: 360 }}
+          />
+        </div>
+
+        {!isLoading && filteredPending.length === 0 ? (
+          <Empty description={search.trim() ? 'No results match your search' : 'No pending registrations'} />
         ) : (
           <Table
-            dataSource={pending}
+            dataSource={filteredPending}
             columns={columns}
             rowKey="id"
             loading={isLoading}
-            pagination={{ 
+            pagination={{
               pageSize: 10,
-              showTotal: (total) => `${total} pending requests`
+              showTotal: (total) => `${total} pending requests`,
             }}
             scroll={{ x: 'max-content' }}
           />
