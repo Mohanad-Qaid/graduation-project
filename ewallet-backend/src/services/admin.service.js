@@ -27,7 +27,7 @@ async function getPendingUsers() {
         // Only show users who have verified their email — unverified users
         // may have registered but never confirmed, so admins should not act on them.
         where: { status: 'PENDING', email_verified: true },
-        attributes: ['id', 'first_name', 'last_name', 'business_name', 'email', 'phone', 'role', 'status', 'email_verified', 'createdAt'],
+        attributes: ['id', 'first_name', 'last_name', 'business_name', 'business_category', 'email', 'phone', 'role', 'status', 'registration_country', 'registration_city', 'createdAt'],
         order: [['createdAt', 'ASC']],
     });
 }

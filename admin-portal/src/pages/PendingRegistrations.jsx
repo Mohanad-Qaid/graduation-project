@@ -52,42 +52,84 @@ const PendingRegistrations = () => {
 
   const columns = [
     {
-      title: 'Type',
+      title: 'ROLE',
       dataIndex: 'role',
       key: 'role',
+      width: 120,
       render: (role) => (
         <Tag
           icon={role === 'MERCHANT' ? <ShopOutlined /> : <UserOutlined />}
           color={role === 'MERCHANT' ? 'purple' : 'blue'}
+          style={{ fontWeight: 600, letterSpacing: 0.5 }}
         >
           {role}
         </Tag>
       ),
     },
     {
-      title: 'Name',
+      title: 'NAME',
       key: 'name',
-      render: (_, record) => `${record.first_name} ${record.last_name}`,
+      render: (_, record) => (
+        <div>
+          <div style={{ fontWeight: 500, color: '#1a1a2e' }}>
+            {record.first_name} {record.last_name}
+          </div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+            {record.email}
+          </div>
+        </div>
+      ),
     },
     {
-      title: 'Email',
-      dataIndex: 'email',
-      key: 'email',
-    },
-    {
-      title: 'Phone',
+      title: 'PHONE',
       dataIndex: 'phone',
       key: 'phone',
       render: (phone) => phone || '-',
     },
     {
-      title: 'Registered',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => dayjs(date).format('MMM DD, YYYY HH:mm'),
+      title: 'BUSINESS',
+      key: 'business',
+      render: (_, record) => {
+        if (!record.business_name && !record.business_category) {
+          return <span style={{ color: '#bbb' }}>—</span>;
+        }
+        return (
+          <div>
+            {record.business_name && (
+              <div style={{ fontWeight: 500, color: '#1a1a2e' }}>
+                {record.business_name}
+              </div>
+            )}
+            {record.business_category && (
+              <Tag
+                color="purple"
+                style={{ marginTop: 4, fontWeight: 600, letterSpacing: 0.5, fontSize: 11 }}
+              >
+                {record.business_category.toUpperCase()}
+              </Tag>
+            )}
+          </div>
+        );
+      },
     },
     {
-      title: 'Actions',
+      title: 'LOCATION',
+      key: 'location',
+      render: (_, record) => {
+        const city = record.registration_city;
+        const country = record.registration_country;
+        if (!city && !country) return <span style={{ color: '#bbb' }}>—</span>;
+        return <span>{[city, country].filter(Boolean).join(', ')}</span>;
+      },
+    },
+    {
+      title: 'JOINED',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date) => dayjs(date).format('MMM DD, YYYY'),
+    },
+    {
+      title: 'ACTIONS',
       key: 'actions',
       render: (_, record) => (
         <Space>
@@ -111,6 +153,7 @@ const PendingRegistrations = () => {
       ),
     },
   ];
+
 
   const isReject = modal.type === 'reject';
 
