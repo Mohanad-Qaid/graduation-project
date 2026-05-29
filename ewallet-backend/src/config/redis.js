@@ -9,15 +9,17 @@ const redisConfig = {
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
     db: parseInt(process.env.REDIS_DB, 10) || 0,
-    // Only include password if defined
     ...(process.env.REDIS_PASSWORD ? { password: process.env.REDIS_PASSWORD } : {}),
+
+    // increasing delay by 200ms each time it failed to connect
     retryStrategy(times) {
-        // Exponential back-off capped at 10 seconds
         const delay = Math.min(times * 200, 10000);
         return delay;
     },
+
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
+    //making sure that redis is connected when the server starts
     lazyConnect: false,
 };
 

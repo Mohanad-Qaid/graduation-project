@@ -1,6 +1,6 @@
 'use strict';
 
-const { Transaction, Wallet, User, FraudFlag, sequelize } = require('../models');
+const { Transaction, Wallet, User, FraudFlag, WithdrawalRequest, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 
@@ -40,7 +40,7 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
         attributes: [
             'id', 'sender_wallet_id', 'receiver_wallet_id',
             'amount', 'transaction_type', 'status',
-            'reference_code', 'description', 'category', 'counterparty', 'createdAt',
+            'reference_code', 'category', 'counterparty', 'createdAt',
         ],
         include: [
             {
@@ -66,18 +66,22 @@ async function getTransactionHistory({ userId, page = 1, limit = 20, type, statu
 
         let counterparty = 'System';
         if (plainTx.transaction_type === 'TOPUP') {
-            counterparty = 'Deposit';
+            counterparty = plainTx.counterparty || 'Stripe';
         } else if (plainTx.transaction_type === 'WITHDRAWAL') {
-            // WITHDRAWAL has receiver_wallet_id = null — the bank account holder name
-            // is stored directly in the counterparty column by the withdrawal service.
             counterparty = plainTx.counterparty || 'Bank Transfer';
         } else {
-            const otherWallet = isOutgoing ? plainTx.receiverWallet : plainTx.senderWallet;
-            if (otherWallet && otherWallet.owner) {
-                const owner = otherWallet.owner;
-                counterparty = owner.business_name || `${owner.first_name} ${owner.last_name}`;
+            // PAYMENT: counterparty is baked in at creation time.
+            // Fallback to dynamic join only for legacy rows created before this fix.
+            if (plainTx.counterparty) {
+                counterparty = plainTx.counterparty;
             } else {
-                counterparty = 'Unknown';
+                const otherWallet = isOutgoing ? plainTx.receiverWallet : plainTx.senderWallet;
+                if (otherWallet && otherWallet.owner) {
+                    const owner = otherWallet.owner;
+                    counterparty = owner.business_name || `${owner.first_name} ${owner.last_name}`;
+                } else {
+                    counterparty = 'Unknown';
+                }
             }
         }
 
@@ -226,7 +230,7 @@ async function getMerchantStats(userId) {
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
     const now = new Date();
-    
+
     // Today range
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
@@ -353,6 +357,14 @@ async function getAllTransactions({ page = 1, limit = 50, type, status, startDat
                 model: FraudFlag,
                 as: 'fraudFlags',
                 attributes: ['id', 'risk_score'],
+                required: false,
+            },
+            {
+                // For WITHDRAWAL transactions: join withdrawal_requests where transaction_id = this id.
+                // WithdrawalRequest holds the FK (transaction_id), so Transaction.hasOne drives this JOIN.
+                model: WithdrawalRequest,
+                as: 'withdrawalRequest',
+                attributes: ['bank_name', 'bank_account_name', 'bank_account'],
                 required: false,
             },
         ],

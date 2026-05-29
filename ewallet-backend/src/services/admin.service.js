@@ -1,6 +1,6 @@
 'use strict';
 
-const { User, AdminLog, FraudFlag, Transaction, Wallet, WithdrawalRequest, sequelize } = require('../models');
+const { User, AdminLog, FraudFlag, Transaction, Wallet, WithdrawalRequest, QRCode, sequelize } = require('../models');
 const { Op, fn, col, literal } = require('sequelize');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
@@ -137,6 +137,11 @@ async function suspendUser(targetUserId, adminId, reason) {
         user.status = 'SUSPENDED';
         await user.save({ transaction: dbTxn });
 
+        // Deactivate QR so suspended merchants cannot receive payments
+        if (user.role === 'MERCHANT') {
+            await QRCode.update({ is_active: false }, { where: { merchant_id: targetUserId }, transaction: dbTxn });
+        }
+
         await logAdminAction({
             adminId,
             actionType: 'USER_SUSPENDED',
@@ -169,6 +174,11 @@ async function reactivateUser(targetUserId, adminId, reason) {
 
         user.status = 'APPROVED';
         await user.save({ transaction: dbTxn });
+
+        // Restore QR so reactivated merchants can receive payments again
+        if (user.role === 'MERCHANT') {
+            await QRCode.update({ is_active: true }, { where: { merchant_id: targetUserId }, transaction: dbTxn });
+        }
 
         await logAdminAction({
             adminId,

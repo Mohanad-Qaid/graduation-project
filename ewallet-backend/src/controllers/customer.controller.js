@@ -24,25 +24,7 @@ async function getWallet(req, res, next) {
  */
 async function topUp(req, res, next) {
     try {
-        const { amount, description, paymentIntentId } = req.body;
-
-        // Verify payment intent directly with Stripe
-        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-        if (paymentIntent.status !== 'succeeded') {
-            return res.status(400).json({ success: false, message: 'Payment incomplete or failed.' });
-        }
-
-        if (paymentIntent.metadata.userId !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Payment intent user mismatch.' });
-        }
-
-        const amountInCents = Math.round(parseFloat(amount) * 100);
-        if (paymentIntent.amount !== amountInCents) {
-            return res.status(400).json({ success: false, message: 'Amount mismatch.' });
-        }
-
-        const txn = await walletService.topUpWallet({ userId: req.user.id, amount, description, transactionIp: req.ip });
+        const txn = await walletService.topUpWallet({ userId: req.user.id, amount, transactionIp: req.ip });
         return sendSuccess(res, { statusCode: 201, message: 'Top-up successful.', data: txn });
     } catch (err) {
         next(err);
@@ -52,7 +34,15 @@ async function topUp(req, res, next) {
 async function createTopUpIntent(req, res, next) {
     try {
         const { amount } = req.body;
-        const amountInCents = Math.round(parseFloat(amount) * 100);
+        const numAmount = parseFloat(amount);
+
+        if (isNaN(numAmount) || numAmount < 50) {
+            return res.status(400).json({ success: false, message: 'Minimum top-up amount is 50 TRY.' });
+        }
+        if (numAmount > 50000) {
+            return res.status(400).json({ success: false, message: 'Maximum top-up amount is 50,000 TRY.' });
+        }
+        const amountInCents = Math.round(numAmount * 100);
 
         const paymentIntent = await stripe.paymentIntents.create({
             amount: amountInCents,

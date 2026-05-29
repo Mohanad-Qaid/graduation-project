@@ -33,7 +33,7 @@ module.exports = (sequelize) => {
                 onDelete: 'CASCADE',
             },
             payload: {
-                type: DataTypes.TEXT, // signed JWT encoding merchantId + walletId + merchantName
+                type: DataTypes.TEXT, // encoding merchantId + walletId + merchantName
                 allowNull: false,
             },
             is_active: {

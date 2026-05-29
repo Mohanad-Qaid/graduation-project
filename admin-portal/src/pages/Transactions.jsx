@@ -19,8 +19,8 @@ const statusColors = { COMPLETED: 'success', PENDING: 'warning', FAILED: 'error'
 function resolveFrom(record) {
   const type = record.transaction_type;
   if (type === 'TOPUP') {
-    const desc = (record.description || '').toLowerCase();
-    if (desc.includes('admin')) return { label: 'Admin Top-Up', sub: null };
+    const cp = (record.counterparty || '').toLowerCase();
+    if (cp === 'admin') return { label: 'Admin Top-Up', sub: null };
     return { label: 'Stripe / Customer', sub: null };
   }
   const sender = record.senderWallet?.owner;
@@ -31,13 +31,16 @@ function resolveFrom(record) {
 function resolveTo(record) {
   const type = record.transaction_type;
   if (type === 'WITHDRAWAL') {
-    // counterparty = bank_name (set during withdrawal approval)
-    // account holder name is not stored on the Transaction model itself
-    return { label: record.counterparty || 'Bank Transfer', sub: null };
+    const wr = record.withdrawalRequest;
+    return {
+      label: wr?.bank_name       || record.counterparty || 'Bank Transfer',
+      sub:   wr?.bank_account_name || null,
+      sub2:  wr?.bank_account      || null,
+    };
   }
   const receiver = record.receiverWallet?.owner;
-  if (receiver) return { label: receiver.business_name || `${receiver.first_name} ${receiver.last_name}`, sub: receiver.email };
-  return { label: '—', sub: null };
+  if (receiver) return { label: receiver.business_name || `${receiver.first_name} ${receiver.last_name}`, sub: receiver.email, sub2: null };
+  return { label: '—', sub: null, sub2: null };
 }
 
 const Transactions = () => {
@@ -141,11 +144,12 @@ const Transactions = () => {
       title: 'To',
       key: 'to',
       render: (_, record) => {
-        const { label, sub } = resolveTo(record);
+        const { label, sub, sub2 } = resolveTo(record);
         return (
           <div>
             <div style={{ fontSize: 13 }}>{label}</div>
-            {sub && <div style={{ fontSize: 11, color: '#999' }}>{sub}</div>}
+            {sub  && <div style={{ fontSize: 11, color: '#999' }}>{sub}</div>}
+            {sub2 && <div style={{ fontSize: 11, color: '#999', fontFamily: 'monospace' }}>{sub2}</div>}
           </div>
         );
       },

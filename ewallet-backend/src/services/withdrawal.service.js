@@ -4,7 +4,7 @@ const { WithdrawalRequest, Wallet, Transaction, User, sequelize } = require('../
 const { generateReferenceCode } = require('../utils/generateRef.util');
 const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
-const { WITHDRAWAL_FEE_RATE } = require('../config/fees.config');
+const WITHDRAWAL_FEE_RATE = 0.05; // 5% platform fee on merchant withdrawals
 // logAdminAction is used here to log WITHDRAWAL_APPROVED / WITHDRAWAL_REJECTED
 const { logAdminAction } = require('./admin.service');
 
@@ -62,7 +62,7 @@ async function requestWithdrawal({ merchantId, amount, bankName, bankAccount, ba
             throw createHttpError(400, `Insufficient balance. Available: ${balance}`);
         }
 
-        // Compute fee breakdown (rate is always 5%, stored in fees.config.js)
+        // Compute fee breakdown (5% platform fee)
         const feeAmount = parseFloat((grossAmount * WITHDRAWAL_FEE_RATE).toFixed(2));
         const netAmount = parseFloat((grossAmount - feeAmount).toFixed(2));
 
@@ -122,7 +122,7 @@ async function approveWithdrawal(requestId, adminId) {
             ? parseFloat(request.net_amount)
             : parseFloat(request.amount); // fallback for legacy rows without fee fields
 
-        await Transaction.create(
+        const txnRecord = await Transaction.create(
             {
                 sender_wallet_id: request.wallet_id,
                 receiver_wallet_id: null,
@@ -130,13 +130,16 @@ async function approveWithdrawal(requestId, adminId) {
                 transaction_type: 'WITHDRAWAL',
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
-                description: `Withdrawal approved — fee: ${request.fee_amount ?? 0} TRY retained by platform`,
-                // Store bank name as counterparty so the Transactions "To" column shows
-                // the bank name, not the account holder's personal name.
-                counterparty: request.bank_name || request.bank_account_name || null,
+                counterparty: request.bank_name || null,
             },
             { transaction: dbTxn }
         );
+
+        // Write the transaction ID back onto the request — WithdrawalRequest "remembers"
+        // which Transaction it produced. FK lives on withdrawal_requests, not transactions.
+        request.transaction_id = txnRecord.id;
+        await request.save({ transaction: dbTxn });
+
 
         await logAdminAction({
             adminId,

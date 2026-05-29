@@ -25,7 +25,6 @@ module.exports = (sequelize) => {
             action_type: {
                 type: DataTypes.STRING(100),
                 allowNull: false,
-                // Examples: USER_APPROVED, USER_REJECTED, WITHDRAWAL_APPROVED, USER_SUSPENDED
             },
             target_user_id: {
                 type: DataTypes.UUID,

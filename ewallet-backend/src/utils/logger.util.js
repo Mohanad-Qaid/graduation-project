@@ -1,6 +1,6 @@
 'use strict';
 
-const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
+const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 }; // 0 higher priority , 3 lowest priority
 const CURRENT_LEVEL = LOG_LEVELS[process.env.LOG_LEVEL] ?? (process.env.NODE_ENV === 'production' ? 1 : 3);
 
 function formatMessage(level, message, meta) {
@@ -17,7 +17,7 @@ function formatMessage(level, message, meta) {
         }
     }
 
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+    return `[${timestamp}] [${level.toUpperCase()}] ${message} ${metaStr}`;
 }
 
 const logger = {

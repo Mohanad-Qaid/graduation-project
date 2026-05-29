@@ -31,11 +31,11 @@ module.exports = (sequelize) => {
             },
             business_name: {
                 type: DataTypes.STRING(150),
-                allowNull: true, // only MERCHANT users have this
+                allowNull: true,
             },
             business_category: {
                 type: DataTypes.STRING(100),
-                allowNull: true, // only MERCHANT users have this
+                allowNull: true,
             },
             email: {
                 type: DataTypes.STRING(150),
@@ -67,10 +67,9 @@ module.exports = (sequelize) => {
                 allowNull: false,
                 defaultValue: 'PENDING',
             },
-            // Geolocation fields — set once at registration via geoip-lite (offline DB)
-            // Used to detect "Impossible Travel" during fraud evaluation
+            // set once at registration used in fraud evaluation (city and country)
             registration_country: {
-                type: DataTypes.STRING(3),   // ISO-3166 alpha-2, e.g. 'TR'
+                type: DataTypes.STRING(3),
                 allowNull: true,
             },
             registration_city: {

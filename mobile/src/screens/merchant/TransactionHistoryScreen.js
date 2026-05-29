@@ -45,7 +45,7 @@ function getTxIcon(tx) {
 }
 
 function getTxTitle(tx) {
-    if (getTxType(tx) === 'WITHDRAWAL') return 'Withdrawal';
+    if (getTxType(tx) === 'WITHDRAWAL') return tx.counterparty || 'Bank Transfer';
     return tx.counterparty || 'Customer';
 }
 

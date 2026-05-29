@@ -53,7 +53,19 @@ const AddBalanceScreen = ({ navigation }) => {
     if (isNaN(numAmount) || numAmount <= 0) return;
 
     setLocalError(null);
+
+    // Validate before opening Stripe — user must know before they fill card details
+    if (numAmount < 50) {
+      setLocalError('Minimum top-up amount is 50 TRY.');
+      return;
+    }
+    if (numAmount > 50000) {
+      setLocalError('Maximum top-up amount is 50,000 TRY.');
+      return;
+    }
+
     setIsPaymentLoading(true);
+
 
     try {
       const response = await api.post('/customer/wallet/topup/intent', { amount: numAmount });

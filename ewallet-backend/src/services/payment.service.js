@@ -82,7 +82,8 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
                 transaction_type: 'PAYMENT',
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
-                description: `QR payment to merchant`,
+                // Bake counterparty name at creation so it survives user deletion
+                counterparty: merchant.business_name || `${merchant.first_name} ${merchant.last_name}`,
                 category: merchant.business_category || 'General',
             },
             { transaction: dbTxn }

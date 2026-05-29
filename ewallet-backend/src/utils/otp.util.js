@@ -2,23 +2,20 @@
 
 const redisClient = require('../config/redis');
 
-const OTP_TTL_SECONDS     = 195;  // 3 minutes + 15 seconds grace period
-const MAX_ATTEMPTS        = 3;
-const RESEND_WINDOW_SECS  = 3600; // 1 hour
-const MAX_RESENDS         = 3;
+const OTP_TTL_SECONDS = 195;  // 3 minutes + 15 seconds grace period
+const MAX_ATTEMPTS = 3;
+const RESEND_WINDOW_SECS = 3600;
+const MAX_RESENDS = 3;
 
-// ── Key helpers ───────────────────────────────────────────────────────────────
 
-const otpKey    = (email) => `otp:${email.toLowerCase()}`;
+const otpKey = (email) => `otp:${email.toLowerCase()}`;
 const resendKey = (email) => `otp:resend:${email.toLowerCase()}`;
 
-// ── Core functions ────────────────────────────────────────────────────────────
 
 /**
  * Generate a cryptographically random 6-digit numeric OTP string.
  */
 function generateOTP() {
-    // Math.random is fine for OTPs — not a crypto key
     return String(Math.floor(100000 + Math.random() * 900000));
 }
 
@@ -73,7 +70,7 @@ async function verifyOTP(email, inputCode) {
         return { valid: false, reason: 'invalid', attemptsLeft: MAX_ATTEMPTS - newAttempts };
     }
 
-    // ✅ Correct code — delete immediately (single-use)
+    // Correct code — delete immediately
     await redisClient.del(otpKey(email));
     return { valid: true };
 }
@@ -95,7 +92,6 @@ async function incrementResend(email) {
     const key = resendKey(email);
     const count = await redisClient.incr(key);
     if (count === 1) {
-        // First resend this hour — set the window
         await redisClient.expire(key, RESEND_WINDOW_SECS);
     }
 }

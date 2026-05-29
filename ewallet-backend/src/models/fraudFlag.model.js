@@ -53,7 +53,7 @@ module.exports = (sequelize) => {
                 type: DataTypes.DATE,
                 allowNull: true,
             },
-            // Which engine produced the risk score: 'gemini-2.5-pro', 'gemini-2.0-flash', or 'heuristic'
+            // Which engine produced the risk score: 'grok api model' or 'heuristic'
             analyzed_by: {
                 type: DataTypes.STRING(30),
                 allowNull: true,

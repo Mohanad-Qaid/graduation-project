@@ -40,7 +40,7 @@ module.exports = (sequelize) => {
             tableName: 'wallets',
             timestamps: true,
             indexes: [
-                { unique: true, fields: ['user_id'] }, // one-to-one with User
+                { unique: true, fields: ['user_id'] },
                 { fields: ['balance'] },
             ],
         }

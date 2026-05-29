@@ -11,16 +11,13 @@ const { globalRateLimiter } = require('./middlewares/rateLimiter.middleware');
 
 const app = express();
 
-//used for nginx to resolve to the real client.
+//used for nginx to have the users' real ip.
 app.set('trust proxy', 1);
 
-// ─── Security Headers ─────────────────────────────────────────────────────────
+// Security Headers
 app.use(helmet());
 
-
-// to do : modify the cors here
-
-// ─── CORS ──────────────────────────────────────────────────────────────────────
+// CORS
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || '*',
@@ -29,29 +26,19 @@ app.use(
   })
 );
 
-// ─── Body Parsers ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// ─── Global Rate Limiter ──────────────────────────────────────────────────────
+// Global Rate Limiter
 app.use(globalRateLimiter);
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ─── API Routes ───────────────────────────────────────────────────────────────
+// API Routes
 app.use('/api/v1', routes);
 
-// ─── 404 Handler ─────────────────────────────────────────────────────────────
+// 404 Handler
 app.use(notFound);
 
-// ─── Centralized Error Handler ────────────────────────────────────────────────
+// Centralized Error Handler
 app.use(errorHandler);
 
 module.exports = app;

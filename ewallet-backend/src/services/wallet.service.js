@@ -7,19 +7,18 @@ const { createHttpError } = require('../middlewares/errorHandler.middleware');
 const logger = require('../utils/logger.util');
 
 /**
- * Top up a customer wallet.
- * In a semi-closed system this is admin/internal action only.
+ * Top up a customer wallet via Stripe.
  * @param {object} params
  * @param {string} params.userId     - Wallet owner's user ID
  * @param {number} params.amount
- * @param {string} params.description
+ * @param {string} params.transactionIp
  * @returns {object} transaction record
  */
-async function topUpWallet({ userId, amount, description, transactionIp }) {
+async function topUpWallet({ userId, amount, transactionIp }) {
     // ── Deposit limits ──────────────────────────────────────────────────────
     const parsedAmount = parseFloat(amount);
-    if (parsedAmount < 100) {
-        throw createHttpError(400, 'Minimum deposit amount is 100 TRY.');
+    if (parsedAmount < 50) {
+        throw createHttpError(400, 'Minimum top-up amount is 50 TRY.');
     }
     if (parsedAmount > 50000) {
         throw createHttpError(400, 'Maximum deposit amount is 50,000 TRY per transaction.');
@@ -39,13 +38,13 @@ async function topUpWallet({ userId, amount, description, transactionIp }) {
         // Record transaction
         const txn = await Transaction.create(
             {
-                sender_wallet_id: null, // top-up has no sender (external funding)
+                sender_wallet_id: null, // top-up has no sender (external funding via Stripe)
                 receiver_wallet_id: wallet.id,
                 amount,
                 transaction_type: 'TOPUP',
                 status: 'COMPLETED',
                 reference_code: generateReferenceCode(),
-                description: description || 'Wallet top-up',
+                counterparty: 'Stripe',
             },
             { transaction: dbTxn }
         );

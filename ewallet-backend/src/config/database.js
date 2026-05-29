@@ -15,22 +15,13 @@ const sequelize = new Sequelize(
         port: parseInt(process.env.DB_PORT, 10) || 5432,
         dialect: 'postgres',
 
-        // Connection pool — tune per your server capacity
+        // Connection pool ==> 20 connection maximum
         pool: {
             max: 20,
             min: 2,
             acquire: 30000,
             idle: 10000,
         },
-
-        // SSL in production
-        dialectOptions: {
-            ssl:
-                process.env.DB_SSL === 'true'
-                    ? { require: true, rejectUnauthorized: false }
-                    : false,
-        },
-
 
         logging: isProduction ? false : (msg) => logger.debug(msg),
 

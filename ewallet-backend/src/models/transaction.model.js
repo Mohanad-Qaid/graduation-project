@@ -15,7 +15,7 @@ module.exports = (sequelize) => {
             },
             sender_wallet_id: {
                 type: DataTypes.UUID,
-                allowNull: true, // null for top-ups
+                allowNull: true, // null for top-ups 'incoming funds via Stripe sandbox'
                 references: {
                     model: 'wallets',
                     key: 'id',
@@ -24,7 +24,7 @@ module.exports = (sequelize) => {
             },
             receiver_wallet_id: {
                 type: DataTypes.UUID,
-                allowNull: true, // null for withdrawals
+                allowNull: true, // null for withdrawals (payouts processed externally by Admin)
                 references: {
                     model: 'wallets',
                     key: 'id',
@@ -52,10 +52,7 @@ module.exports = (sequelize) => {
                 allowNull: false,
                 unique: true,
             },
-            description: {
-                type: DataTypes.TEXT,
-                allowNull: true,
-            },
+
             category: {
                 type: DataTypes.STRING(100),
                 allowNull: true, // only PAYMENT transactions have a category

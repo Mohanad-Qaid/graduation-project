@@ -86,9 +86,7 @@ export const fetchMerchantDashboard = createAsyncThunk(
             id: tx.id,
             amount: tx.amount,
             createdAt: tx.createdAt,
-            customerName: tx.transaction_type === 'WITHDRAWAL'
-              ? 'Withdrawal to Bank'
-              : (tx.counterparty || 'Customer'),
+            customerName: tx.counterparty || (tx.transaction_type === 'WITHDRAWAL' ? 'Bank Transfer' : 'Customer'),
             type: tx.transaction_type,
             isOutgoing: tx.sender_wallet_id === wallet.id,
             status: tx.status,
@@ -121,9 +119,7 @@ export const fetchMerchantDashboard = createAsyncThunk(
                 id: tx.id,
                 amount: tx.amount,
                 createdAt: tx.createdAt,
-                customerName: tx.transaction_type === 'WITHDRAWAL' || tx.type === 'WITHDRAWAL'
-                  ? 'Withdrawal to Bank'
-                  : (tx.counterparty || 'Customer'),
+                customerName: tx.counterparty || (tx.transaction_type === 'WITHDRAWAL' || tx.type === 'WITHDRAWAL' ? 'Bank Transfer' : 'Customer'),
                 type: tx.transaction_type || tx.type,
                 isOutgoing: tx.isOutgoing,
                 status: tx.status,

@@ -86,6 +86,13 @@ module.exports = (sequelize) => {
                 type: DataTypes.TEXT,
                 allowNull: true,
             },
+            // Set after admin approves — points to the WITHDRAWAL Transaction that was created.
+            // WithdrawalRequest "remembers" the Transaction it produced; Transaction stays generic.
+            transaction_id: {
+                type: DataTypes.UUID,
+                allowNull: true,
+            },
+
         },
         {
             tableName: 'withdrawal_requests',

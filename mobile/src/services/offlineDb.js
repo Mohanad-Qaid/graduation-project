@@ -20,7 +20,6 @@ async function getDatabase() {
         type        TEXT NOT NULL,
         amount      REAL NOT NULL,
         counterparty TEXT,
-        description TEXT,
         status      TEXT,
         createdAt   TEXT,
         synced      INTEGER DEFAULT 0,
@@ -99,14 +98,13 @@ export async function cacheTransactions(transactions) {
     for (const tx of transactions) {
       await database.runAsync(
         `INSERT OR REPLACE INTO transactions
-          (id, type, amount, counterparty, description, status, createdAt, synced, isOutgoing, category, referenceCode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+          (id, type, amount, counterparty, status, createdAt, synced, isOutgoing, category, referenceCode)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
           tx.id,
           tx.transaction_type || tx.type,
           tx.amount,
           tx.counterparty ?? null,
-          tx.description ?? null,
           tx.status ?? null,
           tx.createdAt ?? null,
           tx.isOutgoing ? 1 : 0,
@@ -151,14 +149,13 @@ export async function saveOfflineTransaction(transaction) {
     const database = await getDatabase();
     await database.runAsync(
       `INSERT OR REPLACE INTO transactions
-        (id, type, amount, counterparty, description, status, createdAt, synced, isOutgoing, category, referenceCode)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        (id, type, amount, counterparty, status, createdAt, synced, isOutgoing, category, referenceCode)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
       [
         transaction.id || `offline_${Date.now()}`,
         transaction.type,
         transaction.amount,
         transaction.counterparty ?? null,
-        transaction.description ?? null,
         transaction.status ?? 'PENDING',
         transaction.createdAt ?? new Date().toISOString(),
         transaction.isOutgoing ? 1 : 0,
