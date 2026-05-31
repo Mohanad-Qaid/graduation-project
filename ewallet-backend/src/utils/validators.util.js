@@ -74,9 +74,9 @@ const payQRRules = [
 
 const withdrawalRequestRules = [
     body('amount').isFloat({ gt: 0 }).withMessage('Amount must be a positive number.'),
-    body('bank_name').trim().notEmpty().withMessage('Bank name is required.').isLength({ max: 100 }).withMessage('Bank name must be under 100 characters.'),
-    body('bank_account_name').trim().notEmpty().withMessage('Account name is required.').isLength({ max: 100 }).withMessage('Account name must be under 100 characters.'),
-    body('bank_account').trim().notEmpty().withMessage('IBAN is required.')
+    body('bankName').trim().notEmpty().withMessage('Bank name is required.').isLength({ max: 100 }).withMessage('Bank name must be under 100 characters.'),
+    body('bankAccountName').trim().notEmpty().withMessage('Account name is required.').isLength({ max: 100 }).withMessage('Account name must be under 100 characters.'),
+    body('bankAccount').trim().notEmpty().withMessage('IBAN is required.')
 ];
 
 //  Admin  validators   
