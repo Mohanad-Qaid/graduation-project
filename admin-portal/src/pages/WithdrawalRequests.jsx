@@ -194,7 +194,7 @@ const WithdrawalRequests = () => {
         </>
       )}
       <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 8, marginBottom: 0 }}>
-        Platform fee: {FEE_RATE_DISPLAY}. The net amount will be transferred to the merchant's IBAN.
+        Platform fee: {FEE_RATE_DISPLAY}. The net amount should be transferred to the merchant's IBAN.
       </p>
     </div>
   );
