@@ -10,7 +10,7 @@ const logger = require('../utils/logger.util');
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
-// ─── Register ─────────────────────────────────────────────────────────────────
+//  Register 
 
 /**
  * Register a new user (CUSTOMER or MERCHANT).
@@ -78,7 +78,7 @@ async function register(dto) {
     }
 }
 
-// ─── Login Lockout Helper ───────────────────────────────────────────────────────
+//  Login Lockout Helper 
 
 /**
  * Handle failed login attempts.
@@ -91,13 +91,13 @@ async function handleFailedLogin(user, emailStr) {
     const lockoutKey = `login_lockout:${email}`;
 
     const attempts = await redisClient.incr(attemptKey);
-    
+
     if (attempts === 1) {
-        await redisClient.expire(attemptKey, 24 * 60 * 60); // 24 hour TTL
+        await redisClient.expire(attemptKey, 24 * 60 * 60);
     }
 
     if (attempts === 3) {
-        await redisClient.setex(lockoutKey, 60 * 60, '1'); // 1 hour lockout
+        await redisClient.setex(lockoutKey, 60 * 60, '1');
     } else if (attempts >= 6 && user) {
         // Prepend 'LOCKED:' to the password hash to permanently lock them without schema changes
         if (!user.password_hash.startsWith('LOCKED:')) {
@@ -107,7 +107,7 @@ async function handleFailedLogin(user, emailStr) {
     }
 }
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+//  Login 
 
 /**
  * Authenticate a user with email/6-digit PIN.
@@ -159,7 +159,7 @@ async function login(dto) {
     // Admin logins get shorter-lived tokens (web session, not persistent mobile)
     const isAdmin = dto.isAdmin === true || user.role === 'ADMIN';
     const payload = { id: user.id, role: user.role, status: user.status };
-    const accessToken  = isAdmin ? generateAdminAccessToken(payload)  : generateAccessToken(payload);
+    const accessToken = isAdmin ? generateAdminAccessToken(payload) : generateAccessToken(payload);
     const refreshToken = isAdmin ? generateAdminRefreshToken({ id: user.id }) : generateRefreshToken({ id: user.id });
 
     const REFRESH_TTL_SECONDS = isAdmin ? 8 * 60 * 60 : 7 * 24 * 60 * 60;
@@ -183,7 +183,7 @@ async function login(dto) {
     };
 }
 
-// ─── Get Me ───────────────────────────────────────────────────────────────────
+//  Get Me   
 
 /**
  * Fetch current user data + wallet for session restoration.
@@ -198,7 +198,7 @@ async function getMe(userId) {
     return user;
 }
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
+//  Logout
 
 /**
  * Invalidate tokens on logout.
@@ -207,11 +207,11 @@ async function getMe(userId) {
  */
 async function logout(userId, accessToken) {
     await redisClient.del(`refresh:${userId}`);
-    const BLOCKLIST_TTL = 60 * 20;
+    const BLOCKLIST_TTL = 60 * 60;
     await redisClient.setex(`blocklist:${accessToken}`, BLOCKLIST_TTL, '1');
 }
 
-// ─── Refresh ──────────────────────────────────────────────────────────────────
+//  Refresh Token
 
 /**
  * Exchange a valid refresh token for a new access token.

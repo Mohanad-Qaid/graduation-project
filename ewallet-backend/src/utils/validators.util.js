@@ -2,8 +2,7 @@
 
 const { body, param, query } = require('express-validator');
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-
+//Auth validators
 const registerRules = [
     body('first_name').trim().isLength({ min: 1, max: 50 }).withMessage('First name must be 1–50 characters.'),
     body('last_name').trim().isLength({ min: 1, max: 50 }).withMessage('Last name must be 1–50 characters.'),
@@ -54,8 +53,7 @@ const loginRules = [
     })
 ];
 
-// ─── Wallet / Payment ─────────────────────────────────────────────────────────
-
+// Wallet / Payment validators
 const topUpRules = [
     body('amount')
         .isFloat({ gt: 0 })
@@ -72,13 +70,16 @@ const payQRRules = [
     body('amount').isFloat({ gt: 0 }).withMessage('Amount is required and must be a positive number.'),
 ];
 
-// ─── Withdrawal ───────────────────────────────────────────────────────────────
+// Withdrawal validators
 
 const withdrawalRequestRules = [
     body('amount').isFloat({ gt: 0 }).withMessage('Amount must be a positive number.'),
+    body('bank_name').trim().notEmpty().withMessage('Bank name is required.').isLength({ max: 100 }).withMessage('Bank name must be under 100 characters.'),
+    body('bank_account_name').trim().notEmpty().withMessage('Account name is required.').isLength({ max: 100 }).withMessage('Account name must be under 100 characters.'),
+    body('bank_account').trim().notEmpty().withMessage('IBAN is required.')
 ];
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+//  Admin  validators   
 
 const userIdParamRules = [
     param('userId').isUUID().withMessage('Valid user ID (UUID) required.'),
@@ -95,10 +96,6 @@ const adminTopUpRules = [
         .withMessage('Description must be 255 characters or fewer.'),
 ];
 
-const rejectReasonRules = [
-    body('reason').optional().trim().isLength({ max: 500 }),
-];
-
 // Used for destructive actions where a reason is mandatory (reject, suspend, reactivate)
 const requiredReasonRules = [
     body('reason')
@@ -109,7 +106,7 @@ const requiredReasonRules = [
         .withMessage('Reason must be 500 characters or fewer.'),
 ];
 
-// ─── OTP ──────────────────────────────────────────────────────────────────────
+// OTP validators   
 
 const sendOTPRules = [
     body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
@@ -126,13 +123,6 @@ const verifyEmailRules = [
         .withMessage('Code must be exactly 6 digits.'),
 ];
 
-const verifyResetCodeRules = [
-    body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
-    body('code')
-        .trim()
-        .matches(/^\d{6}$/)
-        .withMessage('Code must be exactly 6 digits.'),
-];
 
 const resetPasswordRules = [
     body('resetToken').trim().notEmpty().withMessage('Reset token is required.'),
@@ -145,7 +135,7 @@ const forgotPasswordRules = [
     body('email').trim().isEmail().normalizeEmail().withMessage('Valid email required.'),
 ];
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
+// Pagination validators
 
 const paginationRules = [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer.'),
@@ -160,12 +150,10 @@ module.exports = {
     withdrawalRequestRules,
     userIdParamRules,
     adminTopUpRules,
-    rejectReasonRules,
     requiredReasonRules,
     paginationRules,
     sendOTPRules,
     verifyEmailRules,
-    verifyResetCodeRules,
     resetPasswordRules,
     forgotPasswordRules,
 };

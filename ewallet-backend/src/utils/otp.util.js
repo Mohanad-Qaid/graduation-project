@@ -1,6 +1,13 @@
 'use strict';
 
+// OTP functions
+// 1. generateOTP: Generates secure 6-digit numeric string.
+// 2. saveOTP: Stores code in Redis with a 195-second self-destruct timer.
+// 3. verifyOTP: Checks code; deletes it on success or on 3rd wrong guess.
+// 4. canResend / incrementResend: Enforces a cap of 3 code requests per hour.
+
 const redisClient = require('../config/redis');
+const crypto = require('crypto');
 
 const OTP_TTL_SECONDS = 195;  // 3 minutes + 15 seconds grace period
 const MAX_ATTEMPTS = 3;
@@ -13,10 +20,14 @@ const resendKey = (email) => `otp:resend:${email.toLowerCase()}`;
 
 
 /**
- * Generate a cryptographically random 6-digit numeric OTP string.
+ * Generate a cryptographically secure OTP of given digits.
+ * @param {number} [digits=6]
+ * @returns {string}
  */
-function generateOTP() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+function generateOTP(digits = 6) {
+    const max = Math.pow(10, digits);
+    const otp = crypto.randomInt(0, max);
+    return String(otp).padStart(digits, '0');
 }
 
 /**

@@ -11,7 +11,7 @@ const redisClient = require('../config/redis');
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
 
-// ── Request / Resend OTP ──────────────────────────────────────────────────────
+//  Request / Resend OTP 
 
 /**
  * Generate and send an OTP to the given email.
@@ -49,7 +49,7 @@ async function requestOTP(email, purpose, mustExist) {
     logger.info(`OTP sent [purpose=${purpose}] to ${normalised}`);
 }
 
-// ── Confirm OTP (email verification after registration) ───────────────────────
+// Confirm OTP (email verification after registration) 
 
 /**
  * Verify an OTP and mark the user's email as verified.
@@ -75,7 +75,7 @@ async function confirmEmailOTP(email, code) {
     }
 }
 
-// ── Reset Password ────────────────────────────────────────────────────────────
+// Reset Password  
 
 /**
  * Verify OTP and issue a 15-minute reset token.

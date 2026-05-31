@@ -13,15 +13,7 @@ function generateReferenceCode() {
     return `TXN-${ts}-${rand}`;
 }
 
-/**
- * Generate a cryptographically secure OTP of given digits.
- * @param {number} [digits=6]
- * @returns {string}
- */
-function generateOTP(digits = 6) {
-    const max = Math.pow(10, digits);
-    const otp = crypto.randomInt(0, max);
-    return String(otp).padStart(digits, '0');
-}
 
-module.exports = { generateReferenceCode, generateOTP };
+
+
+module.exports = { generateReferenceCode };

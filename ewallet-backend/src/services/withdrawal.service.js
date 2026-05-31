@@ -23,7 +23,7 @@ const { logAdminAction } = require('./admin.service');
 async function requestWithdrawal({ merchantId, amount, bankName, bankAccount, bankAccountName }) {
     const dbTxn = await sequelize.transaction();
     try {
-        // ── Basic field validation ──────────────────────────────────────────
+        // Basic field validation 
         if (!bankName || !bankName.trim()) {
             throw createHttpError(400, 'Bank name is required.');
         }

@@ -8,7 +8,7 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authRateLimiter, otpRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     registerRules, loginRules,
-    sendOTPRules, verifyEmailRules, verifyResetCodeRules, resetPasswordRules, forgotPasswordRules,
+    sendOTPRules, verifyEmailRules, resetPasswordRules, forgotPasswordRules,
 } = require('../utils/validators.util');
 
 const router = Router();
@@ -43,7 +43,7 @@ router.post('/verify-email', otpRateLimiter, verifyEmailRules, validate, otpCont
 router.post('/forgot-password', otpRateLimiter, forgotPasswordRules, validate, otpController.forgotPassword);
 
 // Verify OTP + return 15-minute reset token
-router.post('/verify-reset-code', otpRateLimiter, verifyResetCodeRules, validate, otpController.verifyResetCode);
+router.post('/verify-reset-code', otpRateLimiter, verifyEmailRules, validate, otpController.verifyResetCode);
 
 // Complete Password Reset using the reset token
 router.post('/reset-password', authRateLimiter, resetPasswordRules, validate, otpController.doResetPassword);

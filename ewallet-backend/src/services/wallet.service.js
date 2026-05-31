@@ -15,7 +15,7 @@ const logger = require('../utils/logger.util');
  * @returns {object} transaction record
  */
 async function topUpWallet({ userId, amount, transactionIp }) {
-    // ── Deposit limits ──────────────────────────────────────────────────────
+    // Deposit limits 
     const parsedAmount = parseFloat(amount);
     if (parsedAmount < 50) {
         throw createHttpError(400, 'Minimum top-up amount is 50 TRY.');

@@ -5,7 +5,7 @@ const logger = require('../utils/logger.util');
 
 /**
  * Centralized error handler.
- * Must be registered LAST in app.js (after all routes).
+ * registered in app.js (after all routes).
  */
 function errorHandler(err, req, res, _next) {
     // Log the original error internally
@@ -55,7 +55,7 @@ function errorHandler(err, req, res, _next) {
 }
 
 /**
- * 404 handler — must be placed after all routes, before errorHandler.
+ * 404 handler — placed after all routes in app.js, before errorHandler.
  */
 function notFound(req, res) {
     return sendError(res, {

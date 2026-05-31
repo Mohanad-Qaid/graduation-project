@@ -8,10 +8,10 @@ const logger = require('./logger.util');
 const { assessFraudWithFallback } = require('./groqFraud.util');
 
 const FRAUD_SCORE_THRESHOLD = parseInt(process.env.FRAUD_SCORE_THRESHOLD, 10) || 70;
-const LARGE_TXN_AMOUNT      = parseFloat(process.env.FRAUD_LARGE_TXN_AMOUNT) || 5000;
-const FRAUD_WINDOW_SECS     = 3600; // 1 hour
+const LARGE_TXN_AMOUNT = parseFloat(process.env.FRAUD_LARGE_TXN_AMOUNT) || 5000;
+const FRAUD_WINDOW_SECS = 3600;
 
-// ─── Heuristic fallback ───────────────────────────────────────────────────────
+// Heuristic fallback
 
 /**
  * Rule-based scoring used when the Groq AI is unavailable.
@@ -46,7 +46,8 @@ async function computeHeuristicScore({ senderWalletId, amount }) {
     return { score: Math.min(score, 100), reasons };
 }
 
-// ─── Context builder ──────────────────────────────────────────────────────────
+
+// Context builder
 
 /**
  * Assembles the rich context object that is sent to the fraud AI.
@@ -60,14 +61,14 @@ async function buildFraudContext({
     senderWalletId, receiverWalletId,
     amount, transactionType,
     senderBalanceBefore, transactionIp,
-    senderUser,          // full User row to read registration_country/city
+    senderUser,  // full User row
 }) {
-    // ── Velocity from Redis (existing counter) ──────────────────────────────
+    //  Velocity from Redis
     const velocityKey = `fraud:velocity:${senderWalletId}`;
     const velocityCount = await redisClient.incr(velocityKey);
     if (velocityCount === 1) await redisClient.expire(velocityKey, FRAUD_WINDOW_SECS);
 
-    // ── Concurrent DB queries ───────────────────────────────────────────────
+    // Concurrent DB queries    
     const [avgResult, lastTopUp, priorTxn, receiverWallet] = await Promise.all([
 
         // Average historical transaction value for the sender
@@ -100,7 +101,7 @@ async function buildFraudContext({
         receiverWalletId ? Wallet.findByPk(receiverWalletId, { attributes: ['createdAt'], raw: true }) : Promise.resolve(null),
     ]);
 
-    // ── Derived metrics ──────────────────────────────────────────────────────
+    // Derived metrics
     const now = Date.now();
 
     const senderAccountAgeDays = senderUser?.createdAt
@@ -123,7 +124,7 @@ async function buildFraudContext({
 
     const isFirstTimeTransfer = receiverWalletId ? priorTxn === null : null;
 
-    // ── Geolocation (live API) ───────────────────────────────
+    // Geolocation (live API)
     let transactionGeo = null;
     if (transactionIp) {
         const geo = await getGeoLocation(transactionIp);
@@ -136,7 +137,7 @@ async function buildFraudContext({
 
     const isUnusualHour = (() => { const h = new Date().getUTCHours(); return h >= 0 && h < 5; })();
 
-    // ── Assemble the payload ─────────────────────────────────────────────────
+    //  what is sent to the ai prompt 
     return {
         transaction: {
             type: transactionType,
@@ -160,7 +161,7 @@ async function buildFraudContext({
     };
 }
 
-// ─── Main evaluation entry-point ──────────────────────────────────────────────
+//  Main evaluation entry-point 
 
 /**
  * Evaluate a completed transaction for fraud and persist a FraudFlag if
@@ -183,8 +184,6 @@ async function evaluateAndFlagTransaction({
     let score, reasons, analyzedBy;
 
     try {
-        // Fetch sender User row for home location + account age
-        // Bug 6 fix: use `as: 'owner'` to match the alias defined in models/index.js
         const senderWallet = await Wallet.findByPk(senderWalletId, {
             include: [{ model: User, as: 'owner', attributes: ['id', 'createdAt', 'registration_country', 'registration_city'] }],
         });
@@ -201,7 +200,6 @@ async function evaluateAndFlagTransaction({
             });
 
             try {
-                // assessFraudWithFallback tries Pro first, then Flash, then throws
                 ({ score, reasons, analyzedBy } = await assessFraudWithFallback(context));
                 logger.info(`[fraud] score=${score} analyzedBy=${analyzedBy} txn=${transactionId}`);
             } catch (aiErr) {
@@ -218,18 +216,18 @@ async function evaluateAndFlagTransaction({
     } catch (err) {
         logger.error(`[fraud] Context build error for txn=${transactionId}: ${err.message}`);
         // Absolute last resort: heuristic with zero context
-        score      = parseFloat(amount) >= LARGE_TXN_AMOUNT ? 30 : 0;
-        reasons    = score > 0 ? ['Large transaction amount (context error fallback)'] : ['No risk factors detected'];
+        score = parseFloat(amount) >= LARGE_TXN_AMOUNT ? 30 : 0;
+        reasons = score > 0 ? ['Large transaction amount (context error fallback)'] : ['No risk factors detected'];
         analyzedBy = 'heuristic';
     }
 
     if (score >= FRAUD_SCORE_THRESHOLD) {
         await FraudFlag.create({
             transaction_id: transactionId,
-            risk_score:     score,
-            reason:         reasons.join('; '),
-            analyzed_by:    analyzedBy,
-            reviewed:       false,
+            risk_score: score,
+            reason: reasons.join('; '),
+            analyzed_by: analyzedBy,
+            reviewed: false,
         });
         logger.warn(`[fraud] Flag created: txn=${transactionId} score=${score} analyzedBy=${analyzedBy}`);
     }

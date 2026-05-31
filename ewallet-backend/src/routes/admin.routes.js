@@ -8,7 +8,6 @@ const { validate } = require('../middlewares/validate.middleware');
 const {
     userIdParamRules,
     adminTopUpRules,
-    rejectReasonRules,
     requiredReasonRules,
     paginationRules,
 } = require('../utils/validators.util');
@@ -25,11 +24,11 @@ router.get('/revenue', controller.getPlatformRevenue);
 // ─── User Management ──────────────────────────────────────────────────────────
 router.get('/users', paginationRules, validate, controller.getAllUsers);
 router.get('/users/pending', controller.getPendingUsers);
-router.patch('/users/:userId/approve',     userIdParamRules, validate, controller.approveUser);
-router.patch('/users/:userId/reject',      [...userIdParamRules, ...requiredReasonRules], validate, controller.rejectUser);
-router.patch('/users/:userId/suspend',     [...userIdParamRules, ...requiredReasonRules], validate, controller.suspendUser);
-router.patch('/users/:userId/reactivate',  [...userIdParamRules, ...requiredReasonRules], validate, controller.reactivateUser);
-router.patch('/users/:userId/reapprove',   [...userIdParamRules, ...requiredReasonRules], validate, controller.reapproveUser);
+router.patch('/users/:userId/approve', userIdParamRules, validate, controller.approveUser);
+router.patch('/users/:userId/reject', [...userIdParamRules, ...requiredReasonRules], validate, controller.rejectUser);
+router.patch('/users/:userId/suspend', [...userIdParamRules, ...requiredReasonRules], validate, controller.suspendUser);
+router.patch('/users/:userId/reactivate', [...userIdParamRules, ...requiredReasonRules], validate, controller.reactivateUser);
+router.patch('/users/:userId/reapprove', [...userIdParamRules, ...requiredReasonRules], validate, controller.reapproveUser);
 
 // ─── Top-up ───────────────────────────────────────────────────────────────────
 router.post('/users/:userId/topup', adminTopUpRules, validate, controller.adminTopUp);

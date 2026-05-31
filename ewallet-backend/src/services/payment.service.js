@@ -25,7 +25,7 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
     const dbTxn = await sequelize.transaction();
 
     try {
-        // ── Step 1: Validate merchant exists and is a MERCHANT ─────────────
+        // Step 1: Validate merchant exists and is a MERCHANT 
         const merchant = await User.findByPk(merchantId, { transaction: dbTxn });
         if (!merchant) throw createHttpError(404, 'Merchant not found.');
         if (merchant.role !== 'MERCHANT') {
@@ -35,18 +35,18 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
             throw createHttpError(400, 'Merchant cannot pay their own QR code.');
         }
 
-        // ── Step 2: Locate active QR → get wallet_id ──────────────────────
+        // Step 2: Locate active QR → get wallet_id 
         const qr = await QRCode.findOne({ where: { merchant_id: merchantId }, transaction: dbTxn, lock: true });
         if (!qr) throw createHttpError(404, 'Merchant has not set up a QR code.');
         if (!qr.is_active) throw createHttpError(400, 'Merchant QR code is deactivated.');
 
-        // ── Step 3: Resolve and validate amount ───────────────────────────
+        // Step 3: Resolve and validate amount 
         const paymentAmount = parseFloat(amount);
         if (!paymentAmount || paymentAmount <= 0) {
             throw createHttpError(400, 'Invalid payment amount.');
         }
 
-        // ── Step 3: Lock sender wallet ─────────────────────────────────────
+        // Step 3: Lock sender wallet 
         const senderWallet = await Wallet.findOne({
             where: { user_id: senderUserId },
             transaction: dbTxn,
@@ -54,26 +54,26 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
         });
         if (!senderWallet) throw createHttpError(404, 'Sender wallet not found.');
 
-        // ── Step 4: Check sufficient balance ───────────────────────────────
+        // Step 4: Check sufficient balance 
         const senderBalance = parseFloat(senderWallet.balance);
         const senderBalanceBefore = senderBalance; // captured before deduction for fraud AI context
         if (senderBalance < paymentAmount) {
             throw createHttpError(400, `Insufficient balance. Available: ${senderBalance}, Required: ${paymentAmount}`);
         }
 
-        // ── Step 5: Lock receiver (merchant) wallet ────────────────────────
+        // Step 5: Lock receiver (merchant) wallet 
         const receiverWallet = await Wallet.findByPk(qr.wallet_id, { transaction: dbTxn, lock: true });
         if (!receiverWallet) throw createHttpError(404, 'Merchant wallet not found.');
 
-        // ── Step 6: Deduct sender ──────────────────────────────────────────
+        // Step 6: Deduct sender 
         senderWallet.balance = (senderBalance - paymentAmount).toFixed(2);
         await senderWallet.save({ transaction: dbTxn });
 
-        // ── Step 7: Credit receiver ────────────────────────────────────────
+        // Step 7: Credit receiver 
         receiverWallet.balance = (parseFloat(receiverWallet.balance) + paymentAmount).toFixed(2);
         await receiverWallet.save({ transaction: dbTxn });
 
-        // ── Step 8: Record transaction ─────────────────────────────────────
+        // Step 8: Record transaction 
         const txnRecord = await Transaction.create(
             {
                 sender_wallet_id: senderWallet.id,
@@ -89,10 +89,10 @@ async function processQRPayment({ senderUserId, merchantId, amount, transactionI
             { transaction: dbTxn }
         );
 
-        // ── Commit ─────────────────────────────────────────────────────────
+        // Commit
         await dbTxn.commit();
 
-        // ── Step 9: Non-blocking fraud evaluation (fire-and-forget post-commit) ──
+        // Step 9: Non-blocking fraud evaluation (fire-and-forget post-commit)
         evaluateAndFlagTransaction({
             transactionId: txnRecord.id,
             senderWalletId: senderWallet.id,

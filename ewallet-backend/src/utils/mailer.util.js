@@ -3,28 +3,22 @@
 const nodemailer = require('nodemailer');
 const logger = require('./logger.util');
 
-// ── Transporter ───────────────────────────────────────────────────────────────
-// Uses Gmail SMTP with an App Password (not the account password).
-// Generate one at: Google Account → Security → 2-Step Verification → App Passwords
-
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
+  service: 'gmail',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
 });
 
 const FROM = `"${process.env.SMTP_FROM_NAME || 'E-Wallet'}" <${process.env.SMTP_USER}>`;
 
-// ── Templates ─────────────────────────────────────────────────────────────────
-
 function otpEmailHtml(code, purpose) {
-    const purposeText = purpose === 'reset'
-        ? 'reset your PIN'
-        : 'verify your email address';
+  const purposeText = purpose === 'reset'
+    ? 'reset your PIN'
+    : 'verify your email address';
 
-    return `
+  return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
@@ -80,8 +74,6 @@ function otpEmailHtml(code, purpose) {
 </html>`;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 /**
  * Send an OTP email.
  * @param {string} to      - Recipient email address
@@ -89,19 +81,19 @@ function otpEmailHtml(code, purpose) {
  * @param {'verify'|'reset'} purpose
  */
 async function sendOTPEmail(to, code, purpose = 'verify') {
-    const subject = purpose === 'reset'
-        ? 'Your E-Wallet PIN Reset Code'
-        : 'Verify Your E-Wallet Email';
+  const subject = purpose === 'reset'
+    ? 'Your E-Wallet PIN Reset Code'
+    : 'Verify Your E-Wallet Email';
 
-    const info = await transporter.sendMail({
-        from: FROM,
-        to,
-        subject,
-        html: otpEmailHtml(code, purpose),
-    });
+  const info = await transporter.sendMail({
+    from: FROM,
+    to,
+    subject,
+    html: otpEmailHtml(code, purpose),
+  });
 
-    logger.info(`OTP email sent to ${to} (messageId: ${info.messageId})`);
-    return info;
+  logger.info(`OTP email sent to ${to} (messageId: ${info.messageId})`);
+  return info;
 }
 
 module.exports = { sendOTPEmail };

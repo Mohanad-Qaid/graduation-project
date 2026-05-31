@@ -21,6 +21,7 @@ function createRateLimiter({ windowMs, max, prefix, message }) {
         legacyHeaders: false,
         keyGenerator: (req) => `${prefix}:${req.ip}`,
         store: new RedisStore({
+            //GET counter, INCR counter, SET TTL When a request arrives
             sendCommand: (...args) => redisClient.call(...args),
             prefix,
         }),
@@ -64,8 +65,8 @@ const paymentRateLimiter = createRateLimiter({
 
 /** OTP send/resend limiter — stricter than auth to prevent email spam */
 const otpRateLimiter = createRateLimiter({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 30, // Increased from 5 to 30 to prevent blocking during normal reset flows
+    windowMs: 15 * 60 * 1000,
+    max: 30,
     prefix: 'rl:otp',
     message: 'Too many OTP requests. Please wait 15 minutes.',
 });

@@ -2,28 +2,19 @@
 
 /**
  * groqFraud.util.js
- * ─────────────────────────────────────────────────────────────────────────────
- * Drop-in replacement for geminiFraud.util.js.
- * Uses the Groq SDK (OpenAI-compatible) to analyse transaction fraud risk.
- *
- * Exported surface is IDENTICAL to the old Gemini util so fraud.util.js only
- * needs to update its require() path — no other callers are affected.
- *
- * Robustness guarantees:
- *  1. `response_format: { type: 'json_object' }` — tells the model to ONLY
- *     return valid JSON (supported by Groq for all chat models).
- *  2. Defensive JSON parsing with code-fence stripping (belt-and-suspenders).
- *  3. Score coercion — handles both numeric 75 and string "75" from the model.
- *  4. Shape validation — throws a descriptive error if score/reasons are absent
- *     so the caller (fraud.util.js) safely falls back to heuristics.
- *  5. No uncaught promise rejections — every error path either throws cleanly
- *     or is caught and re-thrown with context.
+ * Analyzes fraud risk via Groq SDK.
+ * * Guarantees:
+ * 1. Forced JSON format.
+ * 2. Strips markdown fences automatically.
+ * 3. Coerces string scores (e.g., "75") to numbers.
+ * 4. Throws errors on missing fields to trigger heuristic fallback.
+ * 5. Handles all async rejections safely.
  */
 
 const Groq = require('groq-sdk');
 const logger = require('./logger.util');
 
-// ─── Configuration ────────────────────────────────────────────────────────────
+//  Configuration 
 
 const MODEL_ID = process.env.GROQ_MODEL_ID || 'openai/gpt-oss-120b';
 
@@ -67,7 +58,7 @@ Threat patterns to consider:
 - Money mule: First-time relationship with receiver on a large amount
 - Unusual hours: Transactions between 00:00–05:00`;
 
-// ─── Core API call ────────────────────────────────────────────────────────────
+//  Core API call 
 
 /**
  * Call the Groq model and parse the JSON risk assessment.
@@ -85,9 +76,8 @@ async function callGroq(context) {
             model: MODEL_ID,
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user',   content: userPrompt },
+                { role: 'user', content: userPrompt },
             ],
-            // Instructs the model to return ONLY valid JSON — primary enforcement
             response_format: { type: 'json_object' },
             temperature: 0.1,   // low temperature for deterministic scoring
             max_tokens: 512,    // score + a handful of reasons is well under 512
@@ -97,13 +87,13 @@ async function callGroq(context) {
         throw new Error(`Groq API request failed: ${apiErr.message}`);
     }
 
-    // ── Extract raw text ─────────────────────────────────────────────────────
+    //  Extract raw text 
     const raw = response.choices?.[0]?.message?.content?.trim();
     if (!raw) {
         throw new Error('Groq returned an empty response body');
     }
 
-    // ── Parse JSON (defensive — strip accidental code fences just in case) ──
+    //  Parse JSON (defensive — strip accidental code fences just in case) 
     let parsed;
     try {
         const clean = raw
@@ -115,7 +105,7 @@ async function callGroq(context) {
         throw new Error(`Groq response was not valid JSON: ${raw.substring(0, 200)}`);
     }
 
-    // ── Validate shape ───────────────────────────────────────────────────────
+    //  Validate shape 
     if (parsed === null || typeof parsed !== 'object') {
         throw new Error(`Groq response is not a JSON object: ${raw.substring(0, 200)}`);
     }
@@ -132,7 +122,7 @@ async function callGroq(context) {
     }
 
     // Clamp to [0, 100] and round to nearest integer
-    const score   = Math.min(100, Math.max(0, Math.round(numericScore)));
+    const score = Math.min(100, Math.max(0, Math.round(numericScore)));
     // Ensure every reason is a non-empty string
     const reasons = parsed.reasons
         .map(r => String(r).trim())
@@ -141,14 +131,12 @@ async function callGroq(context) {
     return { score, reasons };
 }
 
-// ─── Public entry-point ───────────────────────────────────────────────────────
+//  Public entry-point 
 
 /**
  * Assess fraud risk using Groq.
- * On any failure throws so fraud.util.js safely falls back to heuristics.
  *
- * Returns the same shape as the old Gemini util so fraud.util.js is unchanged:
- *   { score: number, reasons: string[], analyzedBy: string }
+ * Returns   { score: number, reasons: string[], analyzedBy: string }
  *
  * @param {object} context - The full fraud context object from buildFraudContext
  * @returns {Promise<{ score: number, reasons: string[], analyzedBy: string }>}

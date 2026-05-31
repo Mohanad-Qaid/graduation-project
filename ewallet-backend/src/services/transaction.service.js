@@ -115,7 +115,7 @@ async function getExpenseSummary(userId, period = 'month') {
     const wallet = await Wallet.findOne({ where: { user_id: userId } });
     if (!wallet) throw createHttpError(404, 'Wallet not found.');
 
-    // ── Date range by period ───────────────────────────────────────────────
+    // Date range by period 
     const now = new Date();
     let startDate;
     if (period === 'week') {
@@ -132,7 +132,7 @@ async function getExpenseSummary(userId, period = 'month') {
 
     const dateRange = { [Op.between]: [startDate, now] };
 
-    // ── Totals ─────────────────────────────────────────────────────────────
+    // Totals 
     const outgoingPayments = await Transaction.findAll({
         where: {
             sender_wallet_id: wallet.id,
@@ -164,7 +164,7 @@ async function getExpenseSummary(userId, period = 'month') {
     const topupTotal = Number(topups[0]?.total || 0);
     const transactionCount = Number(outgoingPayments[0]?.count || 0);
 
-    // ── Daily Spending Trend (outgoing PAYMENTs grouped by day) ───────────
+    // Daily Spending Trend (outgoing PAYMENTs grouped by day) 
     const dailyRows = await Transaction.findAll({
         where: {
             sender_wallet_id: wallet.id,
@@ -186,7 +186,7 @@ async function getExpenseSummary(userId, period = 'month') {
         total: Number(row.total || 0),
     }));
 
-    // ── Category Breakdown ─────────────────────────────────────────────────
+    // Category Breakdown
     const categoryRows = await Transaction.findAll({
         where: {
             sender_wallet_id: wallet.id,
