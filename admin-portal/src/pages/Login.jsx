@@ -237,7 +237,7 @@ const Login = () => {
 
             {/* Security footnote */}
             <p className="login-hint">
-              Secured by JWT · Sessions expire after 8 hours
+              Secure access to the E-Wallet management platform.
             </p>
           </div>
         </div>
