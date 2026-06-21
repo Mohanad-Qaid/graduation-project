@@ -1,10 +1,5 @@
 # 💳 E-Wallet Digital Payment Platform
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![React Native](https://img.shields.io/badge/React_Native-CLI-blue.svg)](https://reactnative.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-blue.svg)](https://www.postgresql.org/)
-
 A complete, secure, and highly scalable e-wallet ecosystem. This project features a React Native mobile application for both customers and merchants, paired with a robust React-based Admin Web Portal to manage the entire ecosystem.
 
 ---
@@ -26,7 +21,7 @@ A complete, secure, and highly scalable e-wallet ecosystem. This project feature
 e-wallet/
 ├── ewallet-backend/  # Node.js + Express API Server (REST API, WebSockets)
 ├── mobile/           # React Native Mobile App (Customer & Merchant Interfaces)
-└── admin-portal/     # React + Vite Admin Dashboard (Management & Analytics)
+└── admin-portal/     # React - Admin Dashboard (Management & Analytics)
 ```
 
 ---
@@ -34,25 +29,34 @@ e-wallet/
 ## ✨ Key Features
 
 ### 📱 Mobile App (Customer)
-- **Seamless Onboarding**: Register and login (requires admin approval for security).
-- **Wallet Management**: View real-time wallet balance and simulate top-ups.
-- **QR Code Payments**: Scan merchant QR codes for instant, contactless payments.
-- **Transaction Tracking**: View detailed transaction history and expense dashboard charts.
-- **Profile Management**: Update user details and preferences.
+- **Authentication**: Register a new account or log in. New accounts require admin approval before access is granted.
+- **Home Dashboard**: View available wallet balance, quick-action shortcuts, and a list of recent transactions at a glance.
+- **Add Balance (Top-Up)**: Simulate adding funds to the wallet using Stripe-powered payment integration.
+- **QR Code Scanner**: Scan a merchant's QR code to initiate a payment instantly.
+- **Payment Confirmation**: Review payment details (merchant name, amount) before confirming the transaction.
+- **Transaction History**: Browse a full, paginated history of all past transactions with status and timestamps.
+- **Expense Dashboard**: Visualize spending habits with charts and category breakdowns.
+- **Notifications**: Receive real-time push notifications for payment confirmations and account updates.
+- **Profile Management**: View and update personal information, change password, and log out securely.
 
 ### 🏪 Mobile App (Merchant)
-- **Business Account**: Register and login (requires admin approval).
-- **Revenue Dashboard**: Monitor wallet balance and today's total revenue.
-- **Payment Collection**: Generate dynamic QR codes to receive payments from customers.
-- **Fund Management**: Request money withdrawals and track withdrawal history.
+- **Authentication**: Register a business account or log in. New accounts require admin approval before access is granted.
+- **Home Dashboard**: View the available wallet balance, pending withdrawal amount, a Revenue Overview card (today's & this week's earnings with transaction counts), quick-action shortcuts, and a recent payments list.
+- **Generate QR Code**: Instantly generate and display a personal QR code for customers to scan and pay.
+- **Request Withdrawal**: Submit a bank withdrawal request by providing bank name, account holder name, IBAN, and a custom amount.
+- **Withdrawal History**: Track all past withdrawal requests with their current status (Pending / Approved / Rejected) and bank details.
+- **Transaction History**: Browse a full, paginated history of all incoming and outgoing transactions.
+- **Notifications**: Receive real-time alerts when a customer completes a payment or when a withdrawal request is updated.
+- **Profile Management**: View and update business and personal information, change password, and log out securely.
 
 ### 💻 Admin Web Portal
-- **Centralized Dashboard**: Comprehensive statistics and activity overview.
-- **Approval Workflows**: Approve or reject customer/merchant registrations and withdrawal requests.
-- **Transaction Monitoring**: Filter and view all platform transactions.
-- **AI Fraud Detection**: View and act upon transactions flagged by the automated fraud detection system.
-- **User Management**: Activate, suspend, or manage platform users.
-- **Audit Logs**: Maintain system integrity with detailed admin activity logs.
+- **Dashboard**: A high-level overview of platform total users, total transactions, revenue, and recent activity charts.
+- **Pending Registrations**: Review, approve, or reject new customer and merchant sign-up requests with a searchable list.
+- **Withdrawal Requests**: Review and approve or reject pending merchant withdrawal requests, with full bank detail visibility.
+- **All Transactions**: Browse every platform transaction with filtering and search capabilities.
+- **Suspicious Transactions**: View AI-flagged transactions with fraud scores and take immediate action.
+- **User Management**: Search all users and activate or suspend accounts as needed.
+- **Admin Logs**: A complete, immutable audit trail of every administrative action taken on the platform.
 
 ---
 
@@ -60,9 +64,9 @@ e-wallet/
 
 | Component | Technologies |
 | --- | --- |
-| **Backend** | Node.js, Express, PostgreSQL, Socket.io (Real-time), JWT, bcrypt |
-| **Mobile App** | React Native CLI, Redux Toolkit, React Navigation, React Native Paper, SQLite (Offline storage), react-native-qrcode-svg |
-| **Admin Portal**| React 18, Vite, Redux Toolkit, Ant Design, Recharts, React Router v6 |
+| **Backend** | Node.js, Express, PostgreSQL|
+| **Mobile App** | React Native, Redux Toolkit, SQLite (Offline storage) |
+| **Admin Portal**| React, Redux Toolkit |
 
 ---
 
@@ -70,13 +74,8 @@ e-wallet/
 
 - **Role-Based Access Control (RBAC)**: Distinct permissions for Customers, Merchants, and Admins.
 - **Authentication**: Secure JWT-based authentication with bcrypt password hashing.
-- **Real-Time Capabilities**: Socket.io integration for instant balance updates and notifications.
 - **Data Integrity**: Immutable transaction logging.
-- **Fraud Detection Engine**: Automatically flags suspicious activities based on:
-  - Unusually large transaction amounts (e.g., > $10,000)
-  - Rapid successive transactions (e.g., 5+ in 5 minutes)
-  - New account anomalies (e.g., accounts < 7 days old moving > $1,000)
-  - Daily transaction limit breaches (e.g., > $50,000)
+- **Fraud Detection Engine**: flags suspicious activities.
 
 ---
 
@@ -128,12 +127,12 @@ cd mobile
 # Install dependencies
 npm install
 
+# For Android
+npm run android
+
 # For iOS (macOS only)
 cd ios && pod install && cd ..
 npm run ios
-
-# For Android
-npm run android
 ```
 > **Important Configuration:** You must update the `API_URL` inside `mobile/.env` or `mobile/src/services/api.js`:
 > - **Android Emulator**: `http://10.0.2.2:5000/api`
@@ -188,7 +187,3 @@ npm run android
 </details>
 
 ---
-
-## 📄 License
-
-This project is licensed under the MIT License.
