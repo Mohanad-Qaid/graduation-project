@@ -1,84 +1,111 @@
-# E-Wallet Digital Payment Platform
+# 💳 E-Wallet Digital Payment Platform
 
-A complete e-wallet ecosystem with mobile app for customers/merchants and admin web portal.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![React Native](https://img.shields.io/badge/React_Native-CLI-blue.svg)](https://reactnative.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-blue.svg)](https://www.postgresql.org/)
 
-## Project Structure
+A complete, secure, and highly scalable e-wallet ecosystem. This project features a React Native mobile application for both customers and merchants, paired with a robust React-based Admin Web Portal to manage the entire ecosystem.
 
-```
+---
+
+## 📑 Table of Contents
+- [Project Structure](#-project-structure)
+- [Key Features](#-key-features)
+- [Tech Stack](#-tech-stack)
+- [System Architecture & Security](#-system-architecture--security)
+- [Getting Started](#-getting-started)
+- [API Reference](#-api-reference)
+- [License](#-license)
+
+---
+
+## 📂 Project Structure
+
+```text
 e-wallet/
-├── backend/          # Node.js + Express API Server
-├── mobile/           # React Native Mobile App (Customer & Merchant)
-└── admin-portal/     # React Admin Dashboard
+├── ewallet-backend/  # Node.js + Express API Server (REST API, WebSockets)
+├── mobile/           # React Native Mobile App (Customer & Merchant Interfaces)
+└── admin-portal/     # React + Vite Admin Dashboard (Management & Analytics)
 ```
 
-## Features
+---
 
-### Mobile App (Customer)
-- Register/Login (requires admin approval)
-- View wallet balance
-- Add balance (simulated top-up)
-- Scan QR code and make payments
-- Confirm payments
-- View transaction history
-- Expense dashboard with charts
-- Profile management
+## ✨ Key Features
 
-### Mobile App (Merchant)
-- Register/Login (requires admin approval)
-- View wallet balance and today's revenue
-- Generate QR code for payments
-- Receive customer payments
-- Request withdrawal
-- View withdrawal history
-- Transaction history
-- Profile management
+### 📱 Mobile App (Customer)
+- **Seamless Onboarding**: Register and login (requires admin approval for security).
+- **Wallet Management**: View real-time wallet balance and simulate top-ups.
+- **QR Code Payments**: Scan merchant QR codes for instant, contactless payments.
+- **Transaction Tracking**: View detailed transaction history and expense dashboard charts.
+- **Profile Management**: Update user details and preferences.
 
-### Admin Web Portal
-- Admin login
-- Dashboard with statistics
-- Approve/reject customer and merchant registrations
-- Approve/reject withdrawal requests
-- View all transactions with filters
-- View suspicious transactions (AI-flagged)
-- User management (activate/suspend users)
-- Admin activity logs
+### 🏪 Mobile App (Merchant)
+- **Business Account**: Register and login (requires admin approval).
+- **Revenue Dashboard**: Monitor wallet balance and today's total revenue.
+- **Payment Collection**: Generate dynamic QR codes to receive payments from customers.
+- **Fund Management**: Request money withdrawals and track withdrawal history.
 
-### System Features
-- Role-based access control (Customer, Merchant, Admin)
-- JWT authentication with hashed passwords
-- QR-based internal payments
-- Real-time balance updates (Socket.io)
-- Immutable transaction logging
-- Rule-based fraud detection
-- Offline data viewing (SQLite)
+### 💻 Admin Web Portal
+- **Centralized Dashboard**: Comprehensive statistics and activity overview.
+- **Approval Workflows**: Approve or reject customer/merchant registrations and withdrawal requests.
+- **Transaction Monitoring**: Filter and view all platform transactions.
+- **AI Fraud Detection**: View and act upon transactions flagged by the automated fraud detection system.
+- **User Management**: Activate, suspend, or manage platform users.
+- **Audit Logs**: Maintain system integrity with detailed admin activity logs.
 
-## Setup Instructions
+---
+
+## 🛠 Tech Stack
+
+| Component | Technologies |
+| --- | --- |
+| **Backend** | Node.js, Express, PostgreSQL, Socket.io (Real-time), JWT, bcrypt |
+| **Mobile App** | React Native CLI, Redux Toolkit, React Navigation, React Native Paper, SQLite (Offline storage), react-native-qrcode-svg |
+| **Admin Portal**| React 18, Vite, Redux Toolkit, Ant Design, Recharts, React Router v6 |
+
+---
+
+## 🛡 System Architecture & Security
+
+- **Role-Based Access Control (RBAC)**: Distinct permissions for Customers, Merchants, and Admins.
+- **Authentication**: Secure JWT-based authentication with bcrypt password hashing.
+- **Real-Time Capabilities**: Socket.io integration for instant balance updates and notifications.
+- **Data Integrity**: Immutable transaction logging.
+- **Fraud Detection Engine**: Automatically flags suspicious activities based on:
+  - Unusually large transaction amounts (e.g., > $10,000)
+  - Rapid successive transactions (e.g., 5+ in 5 minutes)
+  - New account anomalies (e.g., accounts < 7 days old moving > $1,000)
+  - Daily transaction limit breaches (e.g., > $50,000)
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [PostgreSQL](https://www.postgresql.org/) (v14 or higher)
 - React Native CLI setup (Android Studio / Xcode)
 
 ### 1. Backend Setup
 
 ```bash
-cd backend
+cd ewallet-backend
 
 # Install dependencies
 npm install
 
-# Create .env file
+# Setup environment variables
 cp .env.example .env
-# Edit .env with your PostgreSQL credentials
+# Edit .env with your specific PostgreSQL credentials and secret keys
 
-# Initialize database
+# Initialize the database
 npm run db:init
 
-# Start server
+# Start the development server
 npm run dev
 ```
-
-Default admin: `admin@ewallet.com` / `admin123`
+> **Default Admin Credentials:** `admin@ewallet.com` / `admin123`
 
 ### 2. Admin Portal Setup
 
@@ -91,8 +118,7 @@ npm install
 # Start development server
 npm run dev
 ```
-
-Open http://localhost:5173
+> The portal will be available at [http://localhost:5173](http://localhost:5173)
 
 ### 3. Mobile App Setup
 
@@ -102,28 +128,32 @@ cd mobile
 # Install dependencies
 npm install
 
-# iOS (Mac only)
+# For iOS (macOS only)
 cd ios && pod install && cd ..
 npm run ios
 
-# Android
+# For Android
 npm run android
 ```
+> **Important Configuration:** You must update the `API_URL` inside `mobile/.env` or `mobile/src/services/api.js`:
+> - **Android Emulator**: `http://10.0.2.2:5000/api`
+> - **iOS Simulator**: `http://localhost:5000/api`
+> - **Physical Device**: Use your computer's local IP address (e.g., `http://192.168.1.X:5000/api`)
 
-**Note:** Update API_URL in `mobile/src/services/api.js`:
-- Android Emulator: `http://10.0.2.2:3000/api`
-- iOS Simulator: `http://localhost:3000/api`
-- Physical device: Use your computer's IP address
+---
 
-## API Endpoints
+## 📡 API Reference
+
+<details>
+<summary>Click to view main API endpoints</summary>
 
 ### Authentication
 - `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
-- `PATCH /api/auth/profile` - Update profile
+- `POST /api/auth/login` - Login user/admin
+- `GET /api/auth/me` - Get current authenticated user
+- `PATCH /api/auth/profile` - Update user profile
 
-### Users (Admin)
+### User Management (Admin)
 - `GET /api/users` - List all users
 - `GET /api/users/pending` - Get pending registrations
 - `PATCH /api/users/:id/approve` - Approve user
@@ -131,65 +161,34 @@ npm run android
 - `PATCH /api/users/:id/suspend` - Suspend user
 - `PATCH /api/users/:id/activate` - Activate user
 
-### Wallet
-- `GET /api/wallet/balance` - Get balance
-- `POST /api/wallet/topup` - Top up wallet
+### Wallet & Transactions
+- `GET /api/wallet/balance` - Get current balance
+- `POST /api/wallet/topup` - Simulate wallet top-up
+- `POST /api/transactions/pay` - Process a payment
+- `GET /api/transactions` - Get user's transaction history
+- `GET /api/transactions/all` - Get all global transactions (Admin)
+- `GET /api/transactions/suspicious` - Get AI-flagged transactions (Admin)
+- `GET /api/transactions/stats` - Get user expense statistics
 
-### Transactions
-- `POST /api/transactions/pay` - Make payment
-- `GET /api/transactions` - Get user transactions
-- `GET /api/transactions/all` - Get all transactions (admin)
-- `GET /api/transactions/suspicious` - Get suspicious transactions (admin)
-- `GET /api/transactions/stats` - Get expense stats
-
-### QR Payments
-- `POST /api/qr/generate` - Generate payment QR (merchant)
-- `POST /api/qr/verify` - Verify QR code
+### QR Code Operations
+- `POST /api/qr/generate` - Generate payment QR code (Merchant)
+- `POST /api/qr/verify` - Verify a scanned QR code
 
 ### Withdrawals
-- `POST /api/withdrawals/request` - Request withdrawal (merchant)
+- `POST /api/withdrawals/request` - Request money withdrawal (Merchant)
 - `GET /api/withdrawals/history` - Get withdrawal history
-- `GET /api/withdrawals/pending` - Get pending withdrawals (admin)
-- `PATCH /api/withdrawals/:id/approve` - Approve withdrawal (admin)
-- `PATCH /api/withdrawals/:id/reject` - Reject withdrawal (admin)
+- `GET /api/withdrawals/pending` - Get pending withdrawals (Admin)
+- `PATCH /api/withdrawals/:id/approve` - Approve withdrawal (Admin)
+- `PATCH /api/withdrawals/:id/reject` - Reject withdrawal (Admin)
 
-### Dashboard
-- `GET /api/dashboard/admin` - Admin dashboard stats
-- `GET /api/dashboard/merchant` - Merchant dashboard stats
-- `GET /api/dashboard/logs` - Admin activity logs
+### Dashboard Analytics
+- `GET /api/dashboard/admin` - Admin statistics and charts
+- `GET /api/dashboard/merchant` - Merchant revenue statistics
+- `GET /api/dashboard/logs` - Admin activity audit logs
+</details>
 
-## Tech Stack
+---
 
-### Backend
-- Node.js + Express
-- PostgreSQL
-- JWT Authentication
-- Socket.io (real-time updates)
-- bcrypt (password hashing)
+## 📄 License
 
-### Mobile App
-- React Native CLI
-- Redux Toolkit
-- React Navigation
-- React Native Paper
-- SQLite (offline storage)
-- react-native-qrcode-svg
-
-### Admin Portal
-- React 18 + Vite
-- Redux Toolkit
-- Ant Design
-- Recharts
-- React Router v6
-
-## Fraud Detection
-
-The system automatically flags transactions based on:
-- Large transaction amounts (> $10,000)
-- Rapid transactions (5+ in 5 minutes)
-- New accounts (< 7 days) with large transfers (> $1,000)
-- Daily transaction limit exceeded (> $50,000)
-
-## License
-
-MIT
+This project is licensed under the MIT License.
